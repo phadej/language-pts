@@ -1,0 +1,9 @@
+packages: .
+
+-- constraints: language-pts +nat
+-- constraints: language-pts +fix
+
+constraints: transformers installed
+
+package language-pts
+  ghc-options: -Werror
