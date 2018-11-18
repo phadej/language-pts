@@ -6,13 +6,14 @@ haddock :
 	cabal new-haddock --with-compiler=ghc-8.4.2 --with-haddock=haddock-2.19 --haddock-hyperlink-source
 
 doctest :
-	doctest -XCPP -DLANGUAGE_PTS_HAS_NAT --fast src/
+	doctest -XCPP -DLANGUAGE_PTS_HAS_NAT -DLANGUAGE_PTS_HAS_BOOL --fast src/
 
 doctest-all :
 	doctest -XCPP --fast src/
 	doctest -XCPP -DLANGUAGE_PTS_HAS_NAT --fast src/
+	doctest -XCPP -DLANGUAGE_PTS_HAS_BOOL --fast src/
 	doctest -XCPP -DLANGUAGE_PTS_HAS_ETA --fast src/
-	doctest -XCPP -DLaNGUAGE_PTS_HAS_NAT -DLANGUAGE_PTS_HAS_ETA --fast src/
+	doctest -XCPP -DLANGUAGE_PTS_HAS_NAT -DLANGUAGE_PTS_HAS_BOOL -DLANGUAGE_PTS_HAS_ETA --fast src/
 
 ghcid :
 	ghcid -c 'cabal new-repl' --restart=language-pts.cabal

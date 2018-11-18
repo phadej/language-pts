@@ -81,7 +81,6 @@ library
     Language.PTS.Check
     Language.PTS.Error
     Language.PTS.Eval
-    Language.PTS.Examples
     Language.PTS.Pretty
     Language.PTS.Quote
     Language.PTS.Script
@@ -92,5 +91,8 @@ library
     Language.PTS.Systems
     Language.PTS.Value
     Language.PTS.WHNF
+
+    Language.PTS.Examples
+    Language.PTS.Examples.Bool
 
     Text.Show.Extras
