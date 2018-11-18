@@ -23,6 +23,11 @@ source-repository head
   type: git
   location: https://github.com/phadej/language-pts
 
+flag bool
+  description: add @Bool@ combinators to the type-system.
+  manual:  True
+  default: False
+
 flag nat
   description: add @Nat@ combinators to the type-system.
   manual:  True
@@ -44,6 +49,9 @@ library
   ghc-options:      -Wall
 
   default-extensions: CPP
+
+  if flag(bool)
+    cpp-options: -DLANGUAGE_PTS_HAS_BOOL
 
   if flag(nat)
     cpp-options: -DLANGUAGE_PTS_HAS_NAT

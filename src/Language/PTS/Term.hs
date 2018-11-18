@@ -59,7 +59,7 @@ data TermInf s a
       -- ^ dependent function space
       --
       -- \[\frac
-      -- {(s,s',s'') \in \mathcal{S} \qquad
+      -- {(s,s',s'') \in \mathcal{R} \qquad
       --  \color{darkblue}\Gamma \vdash \color{darkgreen}{\rho} \Leftarrow \color{darkred}s \qquad
       --  \rho \leadsto \tau \qquad
       --  \color{darkblue}{\Gamma, x : \tau} \vdash \color{darkgreen}{\rho'} \Leftarrow \color{darkred}{s'}
@@ -86,6 +86,58 @@ data TermInf s a
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}s \Rightarrow \color{darkred}{s'} }
       -- \;\mathrm{A{\scriptstyle XIOM}}
       -- \]
+
+#ifdef LANGUAGE_PTS_HAS_BOOL
+    | TermBool
+      -- ^ Booleans.
+      --
+      -- We assume they are type. (Or we could parametrise them by sort!)
+      --
+      -- \[\frac
+      -- {\star \in \mathcal{S}}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}} \Rightarrow \color{darkred}\star }
+      -- \]
+
+    | TermTrue
+      -- ^ True.
+      --
+      -- \[\frac
+      -- {}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathsf{True}} \Rightarrow \color{darkred}{\mathbb{B}} }
+      -- \]
+
+    | TermFalse
+      -- ^ False.
+      --
+      -- \[\frac
+      -- {}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathsf{False}} \Rightarrow \color{darkred}{\mathbb{B}} }
+      -- \]
+
+    -- | Boolean elimination.
+    --
+    -- Here we have to assume the target sort (or parametrise further!).
+    --
+    -- \[ \frac
+      -- {\array{
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}P \Rightarrow \color{darkred}{\mathbb{B} \to s}
+      --  \qquad
+      --  (\star, s, s') \in \mathcal{R}
+      --  \cr
+      --  P\,\mathsf{True} \leadsto \tau \qquad
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}t \Leftarrow \color{darkred}{\tau}
+      --  \cr
+      --  P\,\mathsf{False} \leadsto \tau' \qquad
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}f \Leftarrow \color{darkred}{\tau'}
+      --  \cr
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}b \Leftarrow \color{darkred}{\mathbb{B}}
+      --  \qquad
+      --  P\,b \leadsto \sigma
+      -- }}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}\mathsf{-elim}\,P\,t\,f\,b} \Rightarrow \color{darkred}{\sigma} }
+    -- \]
+    | TermBoolElim (TermInf s a) (TermChk s a) (TermChk s a) (TermChk s a)
+#endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
     | TermNat
@@ -114,7 +166,7 @@ data TermInf s a
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathsf{Succ}\,n} \Rightarrow \color{darkred}{\mathbb{N}} }
       -- \]
 
-    -- | Netural numbers elimination.
+    -- | Natural numbers elimination.
     --
     -- Here we have to assume the target sort (or parametrise further!).
     --
@@ -127,11 +179,13 @@ data TermInf s a
       --  \cr
       --  \Pi m : \mathbb{N}. a\,m \to a\,(\mathsf{Succ}\,m)
       --  \leadsto \tau' \qquad
-      --  \color{darkblue}\Gamma \vdash \color{darkgreen}s \Leftarrow \color{darkred}{\tau}
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}s \Leftarrow \color{darkred}{\tau'}
       --  \cr
       --  \color{darkblue}\Gamma \vdash \color{darkgreen}n \Leftarrow \color{darkred}{\mathbb{N}}
+      --  \qquad
+      --  a\,n \leadsto \sigma
       -- }}
-      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{N}\mathsf{-elim}\,a\,z\,s\,n} \Rightarrow \color{darkred}{a\,n} }
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{N}\mathsf{-elim}\,a\,z\,s\,n} \Rightarrow \color{darkred}{\sigma} }
     -- \]
     | TermNatElim (TermChk s a) (TermChk s a) (TermChk s a) (TermChk s a)
 #endif
@@ -200,6 +254,18 @@ instance Show s => Show1 (TermInf s) where
         showsPrec
         "Sort" d x
 
+#ifdef LANGUAGE_PTS_HAS_BOOL
+    liftShowsPrec _  _  _ TermBool               = showString "TermBool"
+    liftShowsPrec _  _  _ TermTrue               = showString "TermTrue"
+    liftShowsPrec _  _  _ TermFalse              = showString "TermFalse"
+    liftShowsPrec sp sl d (TermBoolElim x y z w) = showsQuadWith
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "TermBoolElim" d x y z w
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_NAT
     liftShowsPrec _  _  _ TermNat      = showString "TermNat"
     liftShowsPrec _  _  _ TermNatZ     = showString "TermNatZ"
@@ -232,6 +298,19 @@ pppInf d t@App {}    = uncurry (pppApplication d) (pppPeelApplication t)
 pppInf d (Ann x t'@Pi {}) =
     uncurry (pppAnnotationPi d (pppChk PrecAnn x)) =<< pppPeelPi t'
 pppInf d (Ann x t)   = pppAnnotation d (pppChk PrecAnn x) (pppInf PrecAnn t)
+
+#ifdef LANGUAGE_PTS_HAS_BOOL
+pppInf _ TermBool    = pppChar '𝔹'
+pppInf _ TermTrue    = pppText "true"
+pppInf _ TermFalse   = pppText "false"
+pppInf d (TermBoolElim a t f b) = pppApplication d
+        (pppText "𝔹-elim")
+        [ pppInf PrecApp a
+        , pppChk PrecApp t
+        , pppChk PrecApp f
+        , pppChk PrecApp b
+        ]
+#endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
 pppInf _ TermNat      = pppChar 'ℕ'
@@ -307,6 +386,17 @@ instance Monad (TermInf s) where
     Sort s   >>= _ = Sort s
     App u d  >>= f = App (u >>= f) (d >>== f)
     Pi n a b >>= f = Pi n (a >>= f) (b >>== f)
+
+#ifdef LANGUAGE_PTS_HAS_BOOL
+    TermBool             >>= _ = TermBool
+    TermTrue             >>= _ = TermTrue
+    TermFalse            >>= _ = TermFalse
+    TermBoolElim a z s n >>= k = TermBoolElim
+        (a >>= k)
+        (z >>== k)
+        (s >>== k)
+        (n >>== k)
+#endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
     TermNat             >>= _ = TermNat

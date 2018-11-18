@@ -16,7 +16,7 @@ import Language.PTS.Sym
 import Language.PTS.Term
 import Language.PTS.Value
 
-#ifdef LANGUAGE_PTS_HAS_NAT
+#if defined(LANGUAGE_PTS_HAS_BOOL) || defined(LANGUAGE_PTS_HAS_NAT)
 import Bound              (closed)
 import Language.PTS.Smart
 #endif
@@ -78,6 +78,32 @@ rtype_ ts ctx term = case term of
             Nothing -> throwErr $ NoRule (ppp0 as) (ppp0 bs) ts
             Just cs -> return $ ValueSort cs
 
+#ifdef LANGUAGE_PTS_HAS_BOOL
+    TermBool   -> return (ValueSort typeSort)
+    TermTrue   -> return ValueBool
+    TermFalse  -> return ValueBool
+
+    TermBoolElim a t f b -> do
+        -- check sorts
+        at <- rtype_ ts' ctx a
+        case at of
+            ValuePi _n ValueBool (Scope (ValueSort s)) -> do
+                let as = typeSort
+                case rule as s of
+                    Nothing  -> throwErr $ NoRule (ppp0 as) (ppp0 s) ts
+                    Just _cs -> pure()
+
+                let a' = eval_ a
+
+                rcheck_ ts' ctx t (valueApp a' ValueTrue)
+                rcheck_ ts' ctx f (valueApp a' ValueFalse)
+                rcheck_ ts' ctx b ValueBool
+
+                return $ a' `valueApp` eval_ b -- TODO: this (and nat case) evaluation is omitted from rules
+
+            _ -> throwErr $ NotAFunction (ppp0 at) (ppp0 a) (ppp0 b) ts'
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_NAT
     TermNat    -> return (ValueSort typeSort)
     TermNatZ   -> return ValueNat
@@ -106,7 +132,7 @@ rtype_ ts ctx term = case term of
     ts' :: [PrettyM Doc]
     ts' = ppp0 term : ts
 
-#ifdef LANGUAGE_PTS_HAS_NAT
+#if defined(LANGUAGE_PTS_HAS_BOOL) || defined(LANGUAGE_PTS_HAS_NAT)
 unsafeClosed :: Traversable f => f a -> f b
 unsafeClosed = maybe (error "real-panic! unsafeClosed") id . closed
 #endif
