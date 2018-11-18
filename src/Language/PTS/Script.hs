@@ -53,6 +53,9 @@ class (Specification s, Monad m) => Script s m | m -> s where
     -- | Write a comment to be output.
     comment_ :: String -> m ()
 
+    section_    :: String -> m ()
+    subsection_ :: String -> m ()
+
 -- | Tell used specification. Helps type-inference.
 spec_ :: Script s m => s -> m ()
 spec_ _ = return ()
@@ -79,28 +82,77 @@ renderOpts :: PP.Options a String
 renderOpts = PP.defaultOptions { PP.optsPageWidth = 60 }
 
 data S s = S
-    { _sTerms :: Map Sym (Term s, Value s)
+    { _sTerms       :: !(Map Sym (Term s, Value s)) -- ^ defined terms
+    , _sLastCommand :: !(Maybe C)                   -- ^ previous command
+    , _sSection     :: !Int
+    , _sSubsection  :: !Int
     }
+
+data C = CComment | CHeader | CDefine | CExample deriving (Eq)
 
 sTerms :: Lens' (S s) (Map Sym (Term s, Value s))
 sTerms = lens _sTerms (\s x -> s { _sTerms = x })
 
+sLastCommand :: Lens' (S s) (Maybe C)
+sLastCommand = lens _sLastCommand (\s x -> s { _sLastCommand = x })
+
+sSection :: Lens' (S s) Int
+sSection = lens _sSection (\s x -> s { _sSection = x })
+
+sSubsection :: Lens' (S s) Int
+sSubsection = lens _sSubsection (\s x -> s { _sSubsection = x })
+
 emptyS :: S s
-emptyS = S mempty
+emptyS = S
+    { _sTerms       = mempty
+    , _sLastCommand = Nothing
+    , _sSection     = 0
+    , _sSubsection  = 0
+    }
 
 runLoud :: Loud s () -> IO ()
 runLoud (Loud m) = evalStateT (runExceptT m) emptyS >>= \x -> case x of
     Left err -> prettyPut err
     Right () -> putStrLn "∎"
 
+startCommand :: C -> Loud s ()
+startCommand c = Loud $ do
+    lc <- use sLastCommand
+    sLastCommand ?= c
+
+    case lc of
+        Nothing                     -> pure ()
+        Just CComment               -> pure ()
+        Just CDefine | c == CDefine -> pure ()
+        _ -> liftIO $ putStrLn "--"
+
 -------------------------------------------------------------------------------
 -- Loud instance
 -------------------------------------------------------------------------------
 
 instance Specification s => Script s (Loud s) where
-    comment_ str = Loud $ liftIO $ putStrLn $ "|\n-- " ++ str
+    comment_ str = do
+        startCommand CComment
+        Loud $ liftIO $ putStrLn $ "-- " ++ str
+
+    section_ str = Loud $ do
+        _unLoud $ startCommand CHeader
+        n <- use sSection
+        sSection .= n + 1
+        sSubsection .= 0
+        let title = "-- " ++ show (n + 1) ++ ". " ++ str
+        liftIO $ putStrLn title
+        liftIO $ putStrLn $ '-' <$ title
+
+    subsection_ str = Loud $ do
+        _unLoud $ startCommand CHeader
+        n <- use sSection
+        m <- use sSubsection
+        sSubsection .= m + 1
+        liftIO $ putStrLn $ "-- " ++ show n ++ "." ++ show (m + 1) ++ ". " ++ str
 
     define_ n t x = do
+        startCommand CDefine
         putPP $ "λ» :define" <+> ppp0 n
             </> pppColon <+> ppp0 t
 
@@ -125,6 +177,7 @@ instance Specification s => Script s (Loud s) where
         sTerms . at n ?= (Ann x t, t')
 
     example_ x = do
+        startCommand CExample
         putPP $ "λ» :example" <+> ppp0 x
         terms <- use sTerms
         let typeCtx  n' = terms ^? ix n' . _2
@@ -136,9 +189,6 @@ instance Specification s => Script s (Loud s) where
         x' <- errorlessValueIntro (eval_ $ x >>= valueCtx)
         putPP $ pppChar '↪' <+> ppp0 (x' :: Value s)
             </> pppChar ':' <+> ppp0 t
-
-        -- empty line after examples
-        putPP "|"
 
 {-
     define_ n term = do

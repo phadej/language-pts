@@ -54,6 +54,13 @@ instance Eval TermInf where
     eval_ (Ann x _  )      = eval_ x
     eval_ (Pi n a b)       = ValuePi n (eval_ a)  (toScope $ eval_ $ fromScopeH b)
 
+#ifdef LANGUAGE_PTS_HAS_BOOL
+    eval_ TermBool               = ValueBool
+    eval_ TermTrue               = ValueTrue
+    eval_ TermFalse              = ValueFalse
+    eval_ (TermBoolElim a t f b) = valueBoolElim (eval_ a) (eval_ t) (eval_ f) (eval_ b)
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_NAT
     eval_ TermNat               = ValueNat
     eval_ TermNatZ              = ValueNatZ

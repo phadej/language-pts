@@ -19,9 +19,19 @@ license-file:  LICENSE
 author:        Oleg Grenrus <oleg.grenrus@iki.fi>
 maintainer:    Oleg Grenrus <oleg.grenrus@iki.fi>
 
+tested-with:
+  GHC == 8.2.2
+   || == 8.4.4
+   || == 8.6.2
+
 source-repository head
   type: git
   location: https://github.com/phadej/language-pts
+
+flag bool
+  description: add @Bool@ combinators to the type-system.
+  manual:  True
+  default: False
 
 flag nat
   description: add @Nat@ combinators to the type-system.
@@ -44,6 +54,9 @@ library
   ghc-options:      -Wall
 
   default-extensions: CPP
+
+  if flag(bool)
+    cpp-options: -DLANGUAGE_PTS_HAS_BOOL
 
   if flag(nat)
     cpp-options: -DLANGUAGE_PTS_HAS_NAT
@@ -73,7 +86,6 @@ library
     Language.PTS.Check
     Language.PTS.Error
     Language.PTS.Eval
-    Language.PTS.Examples
     Language.PTS.Pretty
     Language.PTS.Quote
     Language.PTS.Script
@@ -84,5 +96,8 @@ library
     Language.PTS.Systems
     Language.PTS.Value
     Language.PTS.WHNF
+
+    Language.PTS.Examples
+    Language.PTS.Examples.Bool
 
     Text.Show.Extras
