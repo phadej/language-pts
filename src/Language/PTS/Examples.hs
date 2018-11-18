@@ -228,21 +228,20 @@ lambdaStarIdentity = polymorphicIdentity
 -- λ» :define Bool : ⋆ = ∀ r → r → r → r
 -- λ» :define True : Bool = λ r t f → t
 -- λ» :define False : Bool = λ r t f → f
--- |
+-- --
 -- -- Bool values are itself an if statement
 -- λ» :define not : Bool → Bool = λ x → x Bool False True
 -- λ» :define and : Bool → Bool → Bool = λ x y → x Bool y False
--- |
+-- --
 -- -- One have to look carefully to distinguish the results :)
 -- λ» :example and True True
 -- ↪ λ r t f → t : ∀ r → r → r → r
--- |
+-- --
 -- λ» :example and True False
 -- ↪ λ r t f → f : ∀ r → r → r → r
--- |
+-- --
 -- λ» :example and False True
 -- ↪ λ r t f → f : ∀ r → r → r → r
--- |
 -- ∎
 --
 churchBooleans :: Script s m => m ()
