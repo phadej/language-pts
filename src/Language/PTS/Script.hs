@@ -53,6 +53,9 @@ class (Specification s, Monad m) => Script s m | m -> s where
     -- | Write a comment to be output.
     comment_ :: String -> m ()
 
+    section_    :: String -> m ()
+    subsection_ :: String -> m ()
+
 -- | Tell used specification. Helps type-inference.
 spec_ :: Script s m => s -> m ()
 spec_ _ = return ()
@@ -82,9 +85,10 @@ data S s = S
     { _sTerms       :: !(Map Sym (Term s, Value s)) -- ^ defined terms
     , _sLastCommand :: !(Maybe C)                   -- ^ previous command
     , _sSection     :: !Int
+    , _sSubsection  :: !Int
     }
 
-data C = CComment | CDefine | CExample deriving (Eq)
+data C = CComment | CHeader | CDefine | CExample deriving (Eq)
 
 sTerms :: Lens' (S s) (Map Sym (Term s, Value s))
 sTerms = lens _sTerms (\s x -> s { _sTerms = x })
@@ -92,11 +96,18 @@ sTerms = lens _sTerms (\s x -> s { _sTerms = x })
 sLastCommand :: Lens' (S s) (Maybe C)
 sLastCommand = lens _sLastCommand (\s x -> s { _sLastCommand = x })
 
+sSection :: Lens' (S s) Int
+sSection = lens _sSection (\s x -> s { _sSection = x })
+
+sSubsection :: Lens' (S s) Int
+sSubsection = lens _sSubsection (\s x -> s { _sSubsection = x })
+
 emptyS :: S s
 emptyS = S
     { _sTerms       = mempty
     , _sLastCommand = Nothing
     , _sSection     = 0
+    , _sSubsection  = 0
     }
 
 runLoud :: Loud s () -> IO ()
@@ -123,6 +134,22 @@ instance Specification s => Script s (Loud s) where
     comment_ str = do
         startCommand CComment
         Loud $ liftIO $ putStrLn $ "-- " ++ str
+
+    section_ str = Loud $ do
+        _unLoud $ startCommand CHeader
+        n <- use sSection
+        sSection .= n + 1
+        sSubsection .= 0
+        let title = "-- " ++ show (n + 1) ++ ". " ++ str
+        liftIO $ putStrLn title
+        liftIO $ putStrLn $ '-' <$ title
+
+    subsection_ str = Loud $ do
+        _unLoud $ startCommand CHeader
+        n <- use sSection
+        m <- use sSubsection
+        sSubsection .= m + 1
+        liftIO $ putStrLn $ "-- " ++ show n ++ "." ++ show (m + 1) ++ ". " ++ str
 
     define_ n t x = do
         startCommand CDefine
