@@ -5,6 +5,7 @@ module Language.PTS.Examples (
     module Language.PTS.Examples.Identity,
     module Language.PTS.Examples.Booleans,
     module Language.PTS.Examples.Errors,
+    module Language.PTS.Examples.Hurkens,
 
     -- * Contexts
     module Language.PTS.Examples.Contexts,
@@ -25,6 +26,7 @@ import Language.PTS.Examples.Identity
 import Language.PTS.Examples.Booleans
 import Language.PTS.Examples.Errors
 import Language.PTS.Examples.Contexts
+import Language.PTS.Examples.Hurkens
 
 -------------------------------------------------------------------------------
 -- Type-checking nat

@@ -225,14 +225,16 @@ instance HasTriangle MartinLof where triangle_ = MartinLof 2
 -- \mathcal{A} &= \star : \square, \square : \triangle \newline
 -- \mathcal{R} &= (\star, \star, \star),
 -- (\square, \star, \star), (\square, \square, \square),
--- (\triangle, \square, \square)
+-- (\triangle, \star, \star)
 -- \end{align}
 -- \]
+--
+-- The $(\triangle, \star, \star)$ is an extension rule.
 --
 -- >>> prettyPut $ specificationDoc HOLStar
 -- 𝓢: ⋆, □, △
 -- 𝓐: ⋆ : □, □ : △
--- 𝓡: (⋆,⋆,⋆), (□,⋆,⋆), (□,□,□), (△,□,□)
+-- 𝓡: (⋆,⋆,⋆), (□,⋆,⋆), (□,□,□), (△,⋆,⋆)
 --
 data HOL = HOLStar | HOLBox | HOLTri deriving (Eq, Show, Enum, Bounded)
 
@@ -251,9 +253,9 @@ instance Specification HOL where
 
     rule HOLStar HOLStar = Just HOLStar
     rule HOLBox  HOLStar = Just HOLStar
+    rule HOLTri  HOLStar = Just HOLStar -- extension! not in the original HOL
     rule HOLBox  HOLBox  = Just HOLBox
-    rule HOLTri  HOLBox  = Just HOLBox
-    rule _ _               = Nothing
+    rule _       _       = Nothing
 
 instance HasBox      HOL where box_      = HOLBox
 instance HasTriangle HOL where triangle_ = HOLTri
