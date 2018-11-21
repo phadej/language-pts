@@ -138,6 +138,31 @@ data TermInf s a
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}\mathsf{-elim}\,(\lambda x \to P) \,t\,f\,b} \Rightarrow \color{darkred}{\sigma} }
     -- \]
     | TermBoolElim IrrSym (Scope IrrSym (TermInf s) a) (TermChk s a) (TermChk s a) (TermChk s a)
+
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
+
+    -- | Boolean conjunction, @and@.
+    --
+    -- \[ \frac
+      -- {\array{
+      --  \color{darkblue}{\Gamma, x : \mathbb{B}} \vdash \color{darkgreen}P \Rightarrow \color{darkred}{s}
+      --  \qquad
+      --  (\star, s, s') \in \mathcal{R}
+      --  \cr
+      --  P[x \mapsto \mathsf{True}] \leadsto \tau \qquad
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}t \Leftarrow \color{darkred}{\tau}
+      --  \cr
+      --  P[x \mapsto \mathsf{False}] \leadsto \tau' \qquad
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}f \Leftarrow \color{darkred}{\tau'}
+      --  \cr
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}b \Leftarrow \color{darkred}{\mathbb{B}}
+      --  \qquad
+      --  P[x \mapsto b] \leadsto \sigma
+      -- }}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathsf{and}\,x\,y}}
+    -- \]
+    | TermAnd (TermChk s a) (TermChk s a)
+#endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
@@ -266,6 +291,13 @@ instance Show s => Show1 (TermInf s) where
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
         "TermBoolElim" d x y z w u
+
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
+    liftShowsPrec sp sl d (TermAnd x y) = showsBinaryWith
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "TermAnd" d x y
+#endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
@@ -312,6 +344,14 @@ pppInf d (TermBoolElim x p t f b) = pppApplication d
         , pppChk PrecApp f
         , pppChk PrecApp b
         ]
+
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
+pppInf d (TermAnd x y) = pppApplication d
+    (pppText "𝔹-and")
+    [ pppChk PrecApp x
+    , pppChk PrecApp y
+    ]
+#endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
@@ -398,6 +438,10 @@ instance Monad (TermInf s) where
         (z >>== k)
         (s >>== k)
         (n >>== k)
+
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
+    TermAnd x y >>= k = TermAnd (x >>== k) (y >>== k)
+#endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT

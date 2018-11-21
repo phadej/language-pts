@@ -38,6 +38,11 @@ flag bool
   manual:  True
   default: False
 
+flag bool-prim
+  description: Add @Bool@ primitives, like @and@ which reduce more aggressively.
+  manual:  True
+  default: False
+
 flag nat
   description: add @Nat@ combinators to the type-system.
   manual:  True
@@ -62,6 +67,8 @@ library
 
   if flag(bool)
     cpp-options: -DLANGUAGE_PTS_HAS_BOOL
+    if flag(bool-prim)
+      cpp-options: -DLANGUAGE_PTS_HAS_BOOL_PRIM
 
   if flag(nat)
     cpp-options: -DLANGUAGE_PTS_HAS_NAT

@@ -397,7 +397,10 @@ pppIntegral :: Integral a => a -> PrettyM Doc
 pppIntegral = return . PP.integer . fromIntegral
 
 pppIntegralSub :: Integral a => a -> PrettyM Doc
-pppIntegralSub = return . PP.text . map subDigit . show . fromIntegral
+pppIntegralSub
+    = return . PP.text
+    . map subDigit . (show :: Integer -> String)
+    . fromIntegral
 
 infixr 6 <+>
 infixr 5 $$$, </>

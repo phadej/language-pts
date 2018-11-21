@@ -80,6 +80,10 @@ quoteElim (ValueBoolElim x p t f b) = TermBoolElim x
     (quote_ t)
     (quote_ f)
     (Inf $ quoteElim b)
+
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
+quoteElim (ValueAnd x y) = TermAnd (Inf $ quoteElim x) (Inf $ quoteElim y)
+#endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
