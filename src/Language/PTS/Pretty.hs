@@ -62,6 +62,7 @@ module Language.PTS.Pretty (
     ppp1,
     -- * Convience functons
     prettyShow,
+    prettyShowWith,
     prettyPut,
     prettyPutWith,
     -- * Symbols
@@ -163,6 +164,9 @@ instance a ~ Doc => PrettyPrec (PrettyM a) where
 prettyShow :: PrettyPrec a => a -> String
 prettyShow = PP.render . runPrettyM . ppp PrecDef
 
+prettyShowWith :: PrettyPrec a => PP.Options () String -> a -> String
+prettyShowWith opts = PP.renderWith opts . runPrettyM . ppp PrecDef
+
 prettyPut :: PrettyPrec a => a -> IO ()
 prettyPut = putStrLn . prettyShow
 
@@ -188,7 +192,7 @@ pppParens _    = id
 -- | Mark symbol name as used, but print it as is
 --
 -- >>> prettyPut' $ pppMarkSym "x" <+> pppMarkSym "x" <+> pppFreshSym "x"
--- x x x1
+-- x x x₁
 --
 pppMarkSym :: Sym -> PrettyM Doc
 pppMarkSym (Sym s) = PrettyM $ do
@@ -200,7 +204,7 @@ pppMarkSym (Sym s) = PrettyM $ do
 -- | Generate fresh name.
 --
 -- >>> prettyPut' $ pppFreshSym "x" <+> pppFreshSym "x" <+> pppFreshSym "x"
--- x x1 x2
+-- x x₁ x₂ 
 --
 pppFreshSym :: Sym -> PrettyM Doc
 pppFreshSym (Sym s) = PrettyM $ do
@@ -212,7 +216,7 @@ pppFreshSym (Sym s) = PrettyM $ do
 -- | Scoped name usage. See 'PrettyPrec
 --
 -- >>> prettyPut $ pppFreshSym "x" <+> pppParens True (pppScopedSym "x" (\x -> "\\" <> return x <> "...")) <+> pppFreshSym "x"
--- x (\x1...) x1
+-- x (\x₁...) x₁
 --
 pppScopedSym :: Sym -> (Doc -> PrettyM a) -> PrettyM a
 pppScopedSym (Sym s) f = PrettyM $ do
@@ -250,7 +254,19 @@ toU t
 fromU :: U -> String
 fromU (U n t)
     | n <= 0    = unpack t
-    | otherwise = unpack t ++ show n
+    | otherwise = unpack t ++ map sub (show n)
+  where
+    sub '0' = '₀'
+    sub '1' = '₁'
+    sub '2' = '₂'
+    sub '3' = '₃'
+    sub '4' = '₄'
+    sub '5' = '₅'
+    sub '6' = '₆'
+    sub '7' = '₇'
+    sub '8' = '₈'
+    sub '9' = '₉'
+    sub c   = c
 
 data Stream a = a :> Stream a
 

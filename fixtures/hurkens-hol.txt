@@ -1,0 +1,22 @@
+-- 1. Falsehood and negation
+----------------------------
+--
+λ» :define ⊥ : ⋆ = ∀ x → x
+λ» :define ¬ : ⋆ → ⋆ = λ P → P → ⊥
+--
+λ» :example ⊥
+↪ ∀ x → x : ⋆
+--
+λ» :example ¬
+↪ λ P → P → ∀ x → x : ⋆ → ⋆
+--
+-- 2. Power set and paradoxial universe
+---------------------------------------
+--
+-- we need (△,△,△) to define ℘ S = S → ⋆
+-- luckily we have Haskell as the meta-language
+λ» :define U : □ = Π (X : □) → (((X → ⋆) → ⋆) → X) → (X → ⋆) → ⋆
+error:
+• No PTS Rule (△,□,-)
+• when checking expression
+  Π (X : □) → (((X → ⋆) → ⋆) → X) → (X → ⋆) → ⋆

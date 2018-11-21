@@ -59,10 +59,13 @@ data TermInf s a
       -- ^ dependent function space
       --
       -- \[\frac
-      -- {(s,s',s'') \in \mathcal{R} \qquad
-      --  \color{darkblue}\Gamma \vdash \color{darkgreen}{\rho} \Leftarrow \color{darkred}s \qquad
-      --  \rho \leadsto \tau \qquad
-      --  \color{darkblue}{\Gamma, x : \tau} \vdash \color{darkgreen}{\rho'} \Leftarrow \color{darkred}{s'}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\rho} \Rightarrow \color{darkred}s
+      --  \qquad
+      --  \rho \leadsto \tau
+      --  \qquad
+      --  \color{darkblue}{\Gamma, x : \tau} \vdash \color{darkgreen}{\rho'} \Rightarrow \color{darkred}{s'}
+      --  \qquad
+      --  (s,s',s'') \in \mathcal{R} \qquad
       -- }
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\Pi x : \rho.\rho'} \Rightarrow \color{darkred}{s''} }
       -- \;\mathrm{P{\scriptstyle I}}

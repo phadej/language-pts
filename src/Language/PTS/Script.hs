@@ -9,13 +9,14 @@ module Language.PTS.Script (
     spec_,
     ($$),
     runLoud,
-    Loud,
+    runSilent,
+    runString,
+    ScriptT,
     ) where
 
 import Control.Lens
 import Control.Monad.Except
-import Control.Monad.IO.Class     (MonadIO (..))
-import Control.Monad.State.Strict (MonadState, StateT, evalStateT)
+import Control.Monad.State.Strict (MonadState, runState, State, StateT, evalStateT)
 import Data.Map.Strict            (Map)
 import Data.Void                  (Void)
 
@@ -68,97 +69,151 @@ infixl 0 $$
 ($$) = ($)
 
 -------------------------------------------------------------------------------
--- Loud
+-- ScriptT
 -------------------------------------------------------------------------------
 
-newtype Loud s a = Loud { _unLoud :: ExceptT Err (StateT (S s) IO) a }
-  deriving (Functor, Applicative, Monad, MonadState (S s), MonadError Err)
+newtype ScriptT s m a = ScriptT { _unScriptT :: ExceptT Err (StateT (S m s) m) a }
+  deriving (Functor, Applicative, Monad, MonadError Err, MonadState (S m s))
 
-instance MonadErr (Loud s) where
-    throwErr = throwError
+instance Monad m => MonadErr (ScriptT s m) where
+    throwErr = ScriptT . throwError
 
-putPP :: PrettyM Doc -> Loud s ()
-putPP = Loud . liftIO . prettyPutWith renderOpts
+putPP :: Monad m => PrettyM Doc -> ScriptT s m ()
+putPP doc = ScriptT $ do
+    put <- use sPutStrLn
+    w   <- use sWidth
+    lift $ lift $ put $ prettyShowWith (renderOpts w) doc
 
-renderOpts :: PP.Options a String
-renderOpts = PP.defaultOptions { PP.optsPageWidth = 60 }
+renderOpts :: Int -> PP.Options a String
+renderOpts w = PP.defaultOptions { PP.optsPageWidth = w }
 
-data S s = S
+data S m s = S
     { _sTerms       :: !(Map Sym (Term s, Value s)) -- ^ defined terms
     , _sLastCommand :: !(Maybe C)                   -- ^ previous command
     , _sSection     :: !Int
     , _sSubsection  :: !Int
+    , _sOutput      :: !Bool
+    , _sWidth       :: !Int
+    , _sPutStrLn    :: String -> m ()
     }
 
 data C = CComment | CHeader | CDefine | CExample deriving (Eq)
 
-sTerms :: Lens' (S s) (Map Sym (Term s, Value s))
+sTerms :: Lens' (S m s) (Map Sym (Term s, Value s))
 sTerms = lens _sTerms (\s x -> s { _sTerms = x })
 
-sLastCommand :: Lens' (S s) (Maybe C)
+sLastCommand :: Lens' (S m s) (Maybe C)
 sLastCommand = lens _sLastCommand (\s x -> s { _sLastCommand = x })
 
-sSection :: Lens' (S s) Int
+sSection :: Lens' (S m s) Int
 sSection = lens _sSection (\s x -> s { _sSection = x })
 
-sSubsection :: Lens' (S s) Int
+sSubsection :: Lens' (S m s) Int
 sSubsection = lens _sSubsection (\s x -> s { _sSubsection = x })
 
-emptyS :: S s
-emptyS = S
+sOutput :: Lens' (S m s) Bool
+sOutput = lens _sOutput (\s x -> s { _sOutput = x })
+
+sPutStrLn :: Lens' (S m s) (String -> m ())
+sPutStrLn = lens _sPutStrLn (\s x -> s { _sPutStrLn = x })
+
+sWidth :: Lens' (S m s) Int
+sWidth = lens _sWidth (\s x -> s { _sWidth = x })
+
+emptyS :: (String -> m ()) -> S m s
+emptyS put = S
     { _sTerms       = mempty
     , _sLastCommand = Nothing
     , _sSection     = 0
     , _sSubsection  = 0
+    , _sOutput      = True
+    , _sWidth       = 60
+    , _sPutStrLn    = put
     }
 
-runLoud :: Loud s () -> IO ()
-runLoud (Loud m) = evalStateT (runExceptT m) emptyS >>= \x -> case x of
-    Left err -> prettyPut err
-    Right () -> putStrLn "∎"
+runLoud :: ScriptT s IO () -> IO ()
+runLoud (ScriptT m) = do
+    x <- evalStateT (runExceptT m) $ emptyS putStrLn
+    case x of
+        Left err -> prettyPut err
+        Right () -> putStrLn "∎"
 
-startCommand :: C -> Loud s ()
-startCommand c = Loud $ do
+runSilent :: ScriptT s IO () -> IO ()
+runSilent (ScriptT m) = do
+    x <- evalStateT (runExceptT m) $ (emptyS putStrLn) { _sOutput = False }
+    case x of
+        Left err -> prettyPut err
+        Right () -> putStrLn "∎"
+
+runString :: ScriptT s (State ([String] -> [String])) () -> String
+runString (ScriptT m) = unlines $
+    case runState (evalStateT (runExceptT m) $ (emptyS put) { _sWidth = 120 } ) id of
+        (Left err, f) -> f [prettyShow err]
+        (Right (), f) -> f ["∎"]
+  where
+    put :: String -> State ([String] -> [String]) ()
+    put str = do
+        f <- use id
+        id .= (f . (str :))
+
+startCommand :: Monad m => C -> ScriptT s m ()
+startCommand c = ScriptT $ do
     lc <- use sLastCommand
     sLastCommand ?= c
 
     case lc of
-        Nothing                     -> pure ()
-        Just CComment               -> pure ()
-        Just CDefine | c == CDefine -> pure ()
-        _ -> liftIO $ putStrLn "--"
+        Nothing                      -> pure ()
+        Just CComment | c /= CHeader -> pure ()
+        Just CDefine | c == CDefine  -> pure ()
+        _ -> _unScriptT $ loudPutStrLn "--"
+
+loudPutStrLn :: Monad m => String -> ScriptT s m ()
+loudPutStrLn str = ScriptT $ do
+    output <- use sOutput
+    put    <- use sPutStrLn
+    when output $ lift $ lift $ put str
 
 -------------------------------------------------------------------------------
--- Loud instance
+-- ScriptT instance
 -------------------------------------------------------------------------------
 
-instance Specification s => Script s (Loud s) where
+instance (Specification s, Monad m) => Script s (ScriptT s m) where
     comment_ str = do
         startCommand CComment
-        Loud $ liftIO $ putStrLn $ "-- " ++ str
+        loudPutStrLn $ "-- " ++ str
 
-    section_ str = Loud $ do
-        _unLoud $ startCommand CHeader
+    section_ str = ScriptT $ do
+        _unScriptT $ startCommand CHeader
         n <- use sSection
         sSection .= n + 1
         sSubsection .= 0
         let title = "-- " ++ show (n + 1) ++ ". " ++ str
-        liftIO $ putStrLn title
-        liftIO $ putStrLn $ '-' <$ title
+        _unScriptT $ loudPutStrLn title
+        _unScriptT $ loudPutStrLn $ '-' <$ title
 
-    subsection_ str = Loud $ do
-        _unLoud $ startCommand CHeader
+    subsection_ str = ScriptT $ do
+        _unScriptT $ startCommand CHeader
         n <- use sSection
         m <- use sSubsection
         sSubsection .= m + 1
-        liftIO $ putStrLn $ "-- " ++ show n ++ "." ++ show (m + 1) ++ ". " ++ str
+        _unScriptT $ loudPutStrLn $ "-- " ++ show n ++ "." ++ show (m + 1) ++ ". " ++ str
 
     define_ n t x = do
         startCommand CDefine
-        putPP $ "λ» :define" <+> ppp0 n
-            </> pppColon <+> ppp0 t
+        output <- ScriptT $ use sOutput
 
-            </> pppChar '=' <+> ppp0 x
+        if output
+        then putPP $ "λ» :define" <+> ppp0 n
+                </> pppColon <+> ppp0 t
+                </> pppChar '=' <+> ppp0 x
+        else do
+            let xDoc = ppp0 x
+            let str = prettyShowWith (PP.defaultOptions { PP.optsPageWidth = maxBound }) xDoc
+                str' = let (pfx, sfx) = splitAt 20 str in pfx ++ takeWhile (/= ' ') sfx
+            let doc = if length str > 20 then pppText $ str' ++ ".." else xDoc
+            putPP $ "λ» :define" <+> ppp0 n
+                </> pppColon <+> ppp0 t
+                </> pppChar '=' <+> doc
 
         terms <- use sTerms
         when (has (ix n) terms) $ throwErr "Already defined"
@@ -179,25 +234,19 @@ instance Specification s => Script s (Loud s) where
         sTerms . at n ?= (Ann x t, t')
 
     example_ x = do
-        startCommand CExample
-        putPP $ "λ» :example" <+> ppp0 x
-        terms <- use sTerms
-        let typeCtx  n' = terms ^? ix n' . _2
-        let valueCtx n' = case terms ^? ix n' . _1 of
-                Nothing -> return n'
-                Just y  -> y >>= valueCtx -- todo recursively add everything
+        output <- ScriptT $ use sOutput
+        when output $ do
+            startCommand CExample
+            putPP $ "λ» :example" <+> ppp0 x
+            terms <- use sTerms
+            let typeCtx  n' = terms ^? ix n' . _2
+            let valueCtx n' = case terms ^? ix n' . _1 of
+                    Nothing -> return n'
+                    Just y  -> y >>= valueCtx -- todo recursively add everything
 
-        t <- type_ typeCtx x
-        x' <- errorlessValueIntro $ eval_ typeCtx (x >>= valueCtx) t
-        -- quote term back!
-        putPP $ pppChar '↪' <+> ppp0 (quote_ (x' :: ValueIntro Void s Sym))
-            </> pppChar ':' <+> ppp0 t
-
-{-
-    define_ n term = do
-        putPP $ "define:" <+> ppp0 n <+> PP.equals </> ppp0 term
-        terms <- use sTerms
-        let ctx n' = terms ^? ix n' . _2
-        t <- type_ ctx term >>= errorlessValueIntro
-        putPP $ ppp0 t
--}
+            t <- type_ typeCtx x
+            t' <- errorlessValueIntro t
+            x' <- errorlessValueIntro $ eval_ typeCtx (x >>= valueCtx) t
+            -- quote term back!
+            putPP $ pppChar '↪' <+> ppp0 (quote_ (x' :: ValueIntro Void s Sym))
+                </> pppChar ':' <+> ppp0 (quote_ t')
