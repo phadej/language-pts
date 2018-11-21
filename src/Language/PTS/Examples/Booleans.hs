@@ -15,8 +15,6 @@ module Language.PTS.Examples.Booleans (
 import Language.PTS
 
 #if defined(LANGUAGE_PTS_HAS_BOOL) && defined(LANGUAGE_PTS_HAS_NAT)
-import Control.Monad.Trans.Class (lift)
-
 import Language.PTS.Bound
 #endif
 
@@ -200,7 +198,7 @@ booleansScript = do
     define_ "if"
         $$ forall_ "r" (TermBool ~> "r" ~> "r" ~> "r")
         $$ lams_ ["r", "b", "t", "f"]
-              (Inf $ TermBoolElim "_" (lift "r") "t" "f" "b")
+              (Inf $ TermBoolElim "_" (liftH "r") "t" "f" "b")
 
     section_ "Some simple functions on Booleans"
     subsection_ "Negation, not"
@@ -228,12 +226,12 @@ booleansScript = do
     -- TODO: change to truth
     section_ "Using dependent elimination"
 
-    let ty = TermBoolElim "_" (lift $ sort_ typeSort) (Inf TermBool) (Inf TermNat) "b"
+    let ty = TermBoolElim "_" (liftH $ sort_ typeSort) (Inf TermBool) (Inf TermNat) "b"
     define_ "contrived"
         $$ pi_ "b" TermBool
-              (TermBoolElim "_" (lift $ sort_ typeSort) (Inf TermBool) (Inf TermNat) "b")
+              (TermBoolElim "_" (liftH $ sort_ typeSort) (Inf TermBool) (Inf TermNat) "b")
         $$ lam_ "b"
-            (Inf $ TermBoolElim "p" (abstract1Sym "b" ty) (Inf TermTrue) (Inf TermNatZ)  "b")
+            (Inf $ TermBoolElim "p" (abstract1HSym "b" ty) (Inf TermTrue) (Inf TermNatZ)  "b")
 
     example_ "contrived"
     example_ $ "contrived" @@@ TermTrue
@@ -360,7 +358,7 @@ booleansPrimScript = do
     define_ "if"
         $$ forall_ "r" (TermBool ~> "r" ~> "r" ~> "r")
         $$ lams_ ["r", "b", "t", "f"]
-              (Inf $ TermBoolElim "_" (lift "r") "t" "f" "b")
+              (Inf $ TermBoolElim "_" (liftH "r") "t" "f" "b")
 
     define_ "and"
         $$ TermBool ~> TermBool ~> TermBool

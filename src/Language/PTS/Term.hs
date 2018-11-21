@@ -137,7 +137,7 @@ data TermInf s a
       -- }}
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}\mathsf{-elim}\,(\lambda x \to P) \,t\,f\,b} \Rightarrow \color{darkred}{\sigma} }
     -- \]
-    | TermBoolElim IrrSym (Scope IrrSym (TermInf s) a) (TermChk s a) (TermChk s a) (TermChk s a)
+    | TermBoolElim IrrSym (ScopeH IrrSym (TermInf s) (TermInf s) a) (TermChk s a) (TermChk s a) (TermChk s a)
 
 #ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
 
@@ -339,7 +339,7 @@ pppInf _ TermTrue    = pppText "true"
 pppInf _ TermFalse   = pppText "false"
 pppInf d (TermBoolElim x p t f b) = pppApplication d
         (pppText "𝔹-elim")
-        [ pppScopedIrrSym x $ \xDoc -> pppLambda PrecApp [xDoc] $ pppInf PrecLambda $ instantiate1return xDoc p
+        [ pppScopedIrrSym x $ \xDoc -> pppLambda PrecApp [xDoc] $ pppInf PrecLambda $ instantiate1Hreturn xDoc p
         , pppChk PrecApp t
         , pppChk PrecApp f
         , pppChk PrecApp b
@@ -434,7 +434,7 @@ instance Monad (TermInf s) where
     TermTrue               >>= _ = TermTrue
     TermFalse              >>= _ = TermFalse
     TermBoolElim x p z s n >>= k = TermBoolElim x
-        (p >>>= k)
+        (p >>== k)
         (z >>== k)
         (s >>== k)
         (n >>== k)

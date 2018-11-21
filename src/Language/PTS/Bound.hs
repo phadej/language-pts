@@ -24,6 +24,7 @@ module Language.PTS.Bound (
     abstractHEither,
     abstract1HSym,
     instantiate1H,
+    instantiate1Hreturn,
     instantiateHEither,
     -- lowerScopeT,
     bindingsH,
@@ -69,6 +70,9 @@ instantiate1return :: Functor f => a -> Scope IrrSym f a -> f a
 instantiate1return x (Scope s) = fmap k s where
     k (F y) = y
     k (B _) = x
+
+instantiate1Hreturn :: Module f m => a -> ScopeH IrrSym f m a -> f a
+instantiate1Hreturn x = instantiate1H (return x)
 
 unusedScope :: Traversable m => Scope n m a -> Maybe (m a)
 unusedScope (Scope s) = traverse k s where

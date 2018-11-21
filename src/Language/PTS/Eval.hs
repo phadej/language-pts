@@ -86,7 +86,7 @@ evalInf  ctx (TermBoolElim x p t f b) = case evalChk ctx b ValueBool of
     ValueCoerce b' -> ValueCoerce $ ValueBoolElim x p' t' f' b'
     b'             -> ValueErr $ review _Err $ ApplyPanic $ ppp0 (void f', void b')
   where
-    p' = toScope $ evalInf (addContext ValueBool ctx) $ fromScope p
+    p' = Scope $ evalInf (addContext ValueBool ctx) $ fromScopeH p
     t' = evalChk ctx t $ instantiate1 ValueTrue p'
     f' = evalChk ctx f $ instantiate1 ValueFalse p'
 

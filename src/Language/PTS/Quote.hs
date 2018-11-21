@@ -76,7 +76,7 @@ quoteElim (ValueApp f x) = App (quoteElim f) (quote_ x)
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
 quoteElim (ValueBoolElim x p t f b) = TermBoolElim x
-    (toScope $ unsafeChkToInf $ quoteIntro $ fromScope p)
+    (quoteScopeInf p)
     (quote_ t)
     (quote_ f)
     (Inf $ quoteElim b)

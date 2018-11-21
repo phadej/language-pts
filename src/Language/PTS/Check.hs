@@ -87,7 +87,7 @@ rtype_ ts ctx term = case term of
         let as = typeSort -- sort of Booleans
 
         -- check sorts
-        let p'   = fromScope p
+        let p'   = fromScopeH p
         let ctx' = addContext ValueBool ctx
         bs <- rsort_ ts' (addContext ValueBool ctx) p'
 
