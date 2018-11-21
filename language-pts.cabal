@@ -95,6 +95,7 @@ library
     Language.PTS.Sym
     Language.PTS.Systems
     Language.PTS.Value
+    Language.PTS.Value.Check
     Language.PTS.WHNF
 
     Language.PTS.Examples

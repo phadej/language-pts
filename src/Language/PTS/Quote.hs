@@ -46,12 +46,13 @@ instance Quote ValueIntro TermChk where
 instance Quote ValueElim TermInf where
     quote_ = quoteElim
 
+-- TODO: change to ... -> TermInf s a
 quoteIntro :: Specification s => ValueIntro Void s a -> TermChk s a
-quoteIntro (ValueSort s)   = Inf $ Sort s
-quoteIntro (ValueCoerce v) = Inf $ quoteElim v
-quoteIntro (ValueLam n b)  = Lam n (quoteScope b)
-quoteIntro (ValuePi n a b) = Inf $ Pi n (unsafeChkToInf (quote_ a)) (quoteScopeInf b)
-quoteIntro (ValueErr err)  = absurd err
+quoteIntro (ValueSort s)    = Inf $ Sort s
+quoteIntro (ValueCoerce v)  = Inf $ quoteElim v
+quoteIntro (ValueLam n _ b) = Lam n (quoteScope b)
+quoteIntro (ValuePi n a b)  = Inf $ Pi n (unsafeChkToInf (quote_ a)) (quoteScopeInf b)
+quoteIntro (ValueErr err)   = absurd err
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
 quoteIntro ValueBool  = Inf TermBool

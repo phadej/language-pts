@@ -123,8 +123,8 @@ class CanLam u where
 instance CanLam TermChk where
     lam_ x f = Lam (IrrSym x) $ abstract1HSym x f
 
-instance CanLam (ValueIntro err) where
-    lam_ x f = ValueLam (IrrSym x) $ abstract1Sym x f
+-- instance CanLam (ValueIntro err) where
+--     lam_ x f = ValueLam (IrrSym x) $ abstract1Sym x f
 
 lams_ :: CanLam u => [Sym] -> u s Sym -> u s Sym
 lams_ xs t = foldr lam_ t xs

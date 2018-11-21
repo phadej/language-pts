@@ -60,8 +60,8 @@ rtype_ ts ctx term = case term of
         Nothing -> throwErr $ SortWithoutAxiom (ppp0 s) ts
         Just s' -> return $ ValueSort s'
     Ann x t -> do
-        _ <- rsort_ ts'  ctx t
-        let t' = eval_ t
+        s <- rsort_ ts'  ctx t
+        let t' = eval_ ctx t (ValueSort s)
         rcheck_ ts' ctx x t'
         return t'
     App f x -> do
@@ -69,11 +69,11 @@ rtype_ ts ctx term = case term of
         case ft of
             ValuePi _n a b -> do
                 rcheck_ ts' ctx x a
-                return $ instantiate1 (eval_ x) b
+                return $ instantiate1 (eval_ ctx x a) b
             _ -> throwErr $ NotAFunction (ppp0 ft) (ppp0 f) (ppp0 x) ts'
     Pi _n a b -> do
         as <- rsort_ ts' ctx a
-        bs <- rsort_ ts' (addContext (eval_ a) ctx) (fromScopeH b)
+        bs <- rsort_ ts' (addContext (eval_ ctx a (ValueSort as)) ctx) (fromScopeH b)
         case rule as bs of
             Nothing -> throwErr $ NoRule (ppp0 as) (ppp0 bs) ts
             Just cs -> return $ ValueSort cs
@@ -83,25 +83,25 @@ rtype_ ts ctx term = case term of
     TermTrue   -> return ValueBool
     TermFalse  -> return ValueBool
 
-    TermBoolElim a t f b -> do
+    TermBoolElim p t f b -> do
         -- check sorts
-        at <- rtype_ ts' ctx a
-        case at of
+        pt <- rtype_ ts' ctx p
+        case pt of
             ValuePi _n ValueBool (Scope (ValueSort s)) -> do
                 let as = typeSort
-                case rule as s of
-                    Nothing  -> throwErr $ NoRule (ppp0 as) (ppp0 s) ts
-                    Just _cs -> pure()
+                _ps <- case rule as s of
+                    Nothing -> throwErr $ NoRule (ppp0 as) (ppp0 s) ts
+                    Just ps -> pure ps
 
-                let a' = eval_ a
+                let p' = eval_ ctx p pt
 
-                rcheck_ ts' ctx t (valueApp a' ValueTrue)
-                rcheck_ ts' ctx f (valueApp a' ValueFalse)
+                rcheck_ ts' ctx t (valueApp p' ValueTrue)
+                rcheck_ ts' ctx f (valueApp p' ValueFalse)
                 rcheck_ ts' ctx b ValueBool
 
-                return $ a' `valueApp` eval_ b -- TODO: this (and nat case) evaluation is omitted from rules
+                return $ p' `valueApp` eval_ ctx b ValueBool
 
-            _ -> throwErr $ NotAFunction (ppp0 at) (ppp0 a) (ppp0 b) ts'
+            _ -> throwErr $ NotAFunction (ppp0 pt) (ppp0 p) (ppp0 b) ts'
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
@@ -113,9 +113,9 @@ rtype_ ts ctx term = case term of
 
     TermNatElim a z s n -> do
         -- check sorts
-        rcheck_ ts' ctx a $ unsafeClosed $
-            pi_ "m" ValueNat (sort_ typeSort)
-        let a' = eval_ a
+        let at = unsafeClosed $ pi_ "m" ValueNat (sort_ typeSort)
+        rcheck_ ts' ctx a at
+        let a' = eval_ ctx a at
         -- Nat -> a
         rcheck_ ts' ctx z (valueApp a' ValueNatZ)
         -- Pi l : Nat. a l -> a (succ l)
@@ -126,7 +126,7 @@ rtype_ ts ctx term = case term of
         -- Nat
         rcheck_ ts' ctx n ValueNat
 
-        return $ a' `valueApp` eval_ n
+        return $ a' `valueApp` eval_ ctx n ValueNat
 #endif
   where
     ts' :: [PrettyM Doc]

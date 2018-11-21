@@ -17,6 +17,7 @@ import Control.Monad.Except
 import Control.Monad.IO.Class     (MonadIO (..))
 import Control.Monad.State.Strict (MonadState, StateT, evalStateT)
 import Data.Map.Strict            (Map)
+import Data.Void                  (Void)
 
 import qualified Text.PrettyPrint.Compact as PP
 
@@ -25,6 +26,7 @@ import Language.PTS.Check
 import Language.PTS.Error
 import Language.PTS.Eval
 import Language.PTS.Pretty
+import Language.PTS.Quote
 import Language.PTS.Specification
 import Language.PTS.Sym
 import Language.PTS.Term
@@ -166,11 +168,11 @@ instance Specification s => Script s (Loud s) where
                 Nothing -> return n'
                 Just y  -> y >>= valueCtx -- todo recursively add everything
 
-        _ <- type_ typeCtx t >>= \s -> case s of
+        ts <- type_ typeCtx t >>= \s -> case s of
             ValueSort s' -> return s'
             _            -> throwErr "type of 'type' is not a sort"
 
-        t' <- errorlessValueIntro (eval_ $ t >>= valueCtx)
+        t' <- errorlessValueIntro $ eval_ typeCtx (t >>= valueCtx) (ValueSort ts)
         check_ typeCtx (x >>== valueCtx) t'
 
         -- putPP $ "checked type" </> ppp0 t'
@@ -186,8 +188,9 @@ instance Specification s => Script s (Loud s) where
                 Just y  -> y >>= valueCtx -- todo recursively add everything
 
         t <- type_ typeCtx x
-        x' <- errorlessValueIntro (eval_ $ x >>= valueCtx)
-        putPP $ pppChar '↪' <+> ppp0 (x' :: Value s)
+        x' <- errorlessValueIntro $ eval_ typeCtx (x >>= valueCtx) t
+        -- quote term back!
+        putPP $ pppChar '↪' <+> ppp0 (quote_ (x' :: ValueIntro Void s Sym))
             </> pppChar ':' <+> ppp0 t
 
 {-

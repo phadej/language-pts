@@ -64,12 +64,12 @@ type Value s = ValueIntro Err s Sym
 --
 -- We assume that all operations are well-typed.
 data ValueIntro err s a
-    = ValueLam IrrSym (Scope IrrSym (ValueIntro err s) a)
+    = ValueLam IrrSym (ValueIntro err s a)  (Scope IrrSym (ValueIntro err s) a)
       -- ^ Implication introduction, lambda abstraction.
       --
       -- \[ \frac
       -- {\color{darkblue}{\Gamma^\downarrow, x : \mathord{\tau\!\downarrow}} \vdash \color{darkgreen}b : \color{darkred}{\mathord{\tau'\!\uparrow}}}
-      -- {\color{darkblue}{\Gamma^\downarrow} \vdash \color{darkgreen}{\lambda a \to b} : \color{darkred}{\mathord{A \to \tau'\!\uparrow}}}
+      -- {\color{darkblue}{\Gamma^\downarrow} \vdash \color{darkgreen}{\lambda (a : \tau) \to b} : \color{darkred}{\mathord{\tau \to \tau'\!\uparrow}}}
       -- \]
     | ValueCoerce (ValueElim err s a)
       -- ^ Coercion.
@@ -180,7 +180,7 @@ instance (PrettyPrec err,  AsErr err, Specification s) => Monad (ValueIntro err 
     return = pure
 
     ValueSort s    >>= _ = ValueSort s
-    ValueLam n b   >>= k = ValueLam n (b >>>= k)
+    ValueLam n t b >>= k = ValueLam n (t >>= k) (b >>>= k)
     ValuePi n a b  >>= k = ValuePi n (a >>= k) (b >>>= k)
     ValueCoerce u  >>= k = valueAppBind u k
 
@@ -207,10 +207,10 @@ valueAppBind
     -> ValueIntro err s b
 valueAppBind (ValueVar a) k = k a
 valueAppBind (ValueApp f x) k = case valueAppBind f k of
-    ValueCoerce f' -> ValueCoerce (ValueApp f' (x >>= k))
-    ValueLam _n f' -> instantiate1 (x >>= k) f'
-    ValueErr err   -> ValueErr err
-    f'             -> ValueErr $ review _Err $ ApplyPanic (ppp0 (() <$ f'))
+    ValueCoerce f'    -> ValueCoerce (ValueApp f' (x >>= k))
+    ValueLam _n _t f' -> instantiate1 (x >>= k) f'
+    ValueErr err      -> ValueErr err
+    f'                -> ValueErr $ review _Err $ ApplyPanic (ppp0 (() <$ f'))
 
 #if LANGUAGE_PTS_HAS_BOOL
 valueAppBind (ValueBoolElim a t f b) k =
@@ -290,11 +290,11 @@ instance (PrettyPrec err, AsErr err, Specification s) => Module (ValueIntro err 
 valueBind
     :: (PrettyPrec err, AsErr err, Specification s)
     => ValueIntro err s a -> (a -> ValueElim err s b) -> ValueIntro err s b
-valueBind (ValueSort s)   _ = ValueSort s
-valueBind (ValueCoerce e) k = ValueCoerce (e >>= k)
-valueBind (ValueLam n b)  k = ValueLam n (b >>>= ValueCoerce . k)
-valueBind (ValuePi n a b) k = ValuePi n (a >>= ValueCoerce . k) (b >>>= ValueCoerce . k)
-valueBind (ValueErr err)  _ = ValueErr err
+valueBind (ValueSort s)    _ = ValueSort s
+valueBind (ValueCoerce e)  k = ValueCoerce (e >>= k)
+valueBind (ValueLam n t b) k = ValueLam n (valueBind t k) (b >>>= ValueCoerce . k)
+valueBind (ValuePi n a b)  k = ValuePi n (a >>= ValueCoerce . k) (b >>>= ValueCoerce . k)
+valueBind (ValueErr err)   _ = ValueErr err
 
 #if LANGUAGE_PTS_HAS_BOOL
 valueBind ValueBool        _ = ValueBool
@@ -390,8 +390,10 @@ traverseErrValueIntro :: Applicative f => (err -> f err') -> ValueIntro err s a 
 traverseErrValueIntro f (ValueErr err)    = ValueErr <$> f err
 traverseErrValueIntro _ (ValueSort s)     = pure (ValueSort s)
 traverseErrValueIntro f (ValueCoerce e)   = ValueCoerce <$> traverseErrValueElim f e
-traverseErrValueIntro f (ValueLam n b)    = ValueLam n <$> transverseScope (traverseErrValueIntro f) b
-traverseErrValueIntro f (ValuePi n a b) = ValuePi n
+traverseErrValueIntro f (ValueLam n t b)  = ValueLam n
+    <$> traverseErrValueIntro f t
+    <*> transverseScope (traverseErrValueIntro f) b
+traverseErrValueIntro f (ValuePi n a b)   = ValuePi n
     <$> (traverseErrValueIntro f a)
     <*> (fmap toScope $ traverseErrValueIntro f $ fromScope b)
 
@@ -448,10 +450,11 @@ errorlessValueElim' = errorlessValueElim
 -------------------------------------------------------------------------------
 
 instance (Show s, Show err) => Show1 (ValueIntro err s) where
-    liftShowsPrec sp sl d (ValueLam x y) = showsBinaryWith
+    liftShowsPrec sp sl d (ValueLam x y z) = showsTernaryWith
         showsPrec
         (liftShowsPrec sp sl)
-        "ValueLam" d x y
+        (liftShowsPrec sp sl)
+        "ValueLam" d x y z
     liftShowsPrec sp sl d (ValueCoerce x) = showsUnaryWith
         (liftShowsPrec sp sl)
         "ValueCoerce"
@@ -528,10 +531,11 @@ instance (Show a, Show err, Show s) => Show (ValueElim err s a) where showsPrec 
 -------------------------------------------------------------------------------
 
 instance Eq s => Eq1 (ValueIntro err s) where
-    liftEq _  (ValueSort s)   (ValueSort s')   = s == s'
-    liftEq eq (ValueCoerce x) (ValueCoerce x')  = liftEq eq x x'
-    liftEq eq (ValueLam _ x)  (ValueLam _ x')   = liftEq eq x x'
-    liftEq eq (ValuePi _ a b) (ValuePi _ a' b') =
+    liftEq _  (ValueSort s)     (ValueSort s')     = s == s'
+    liftEq eq (ValueCoerce x)   (ValueCoerce x')   = liftEq eq x x'
+    liftEq eq (ValueLam _ t x)  (ValueLam _ t' x') =
+        liftEq eq x x' && liftEq eq t t'
+    liftEq eq (ValuePi _ a b)   (ValuePi _ a' b')  =
         liftEq eq a a' && liftEq eq b b'
 
     -- Errors are inequal
@@ -610,9 +614,10 @@ pppIntro d (ValueNatS n)
 #endif
 
 pppPeelLam :: (Specification s, PrettyPrec err) => ValueIntro err s Doc -> PrettyM ([Doc], PrettyM Doc)
-pppPeelLam (ValueLam n b) = pppScopedIrrSym n $ \nDoc -> do
+pppPeelLam (ValueLam n t b) = pppScopedIrrSym n $ \nDoc -> do
     ~(xs, ys) <- pppPeelLam (instantiate1return nDoc b)
-    return (nDoc : xs, ys)
+    ntDoc <- pppAnnotation PrecAnn (return nDoc) (pppIntro PrecAnn t)
+    return (ntDoc : xs, ys)
 pppPeelLam v = return ([], pppIntro PrecLambda v)
 
 pppPeelPi :: (PrettyPrec err, Specification s) => ValueIntro err s Doc -> PrettyM ([PPPi], PrettyM Doc)

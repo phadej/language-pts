@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 -- | Evaluation.
 --
 -- Performs β-reductions.
@@ -25,9 +26,11 @@
 --   /Note:/ The \((\lambda x. f\, x)\,y\) reduces to \(f\,y\) via both, beta and eta, reductions.
 --
 module Language.PTS.Eval (
-    Eval (..),
+    eval_,
     -- $eta
     ) where
+
+import Control.Lens ((#))
 
 import Language.PTS.Bound
 import Language.PTS.Error
@@ -37,51 +40,98 @@ import Language.PTS.Specification
 import Language.PTS.Sym
 import Language.PTS.Term
 import Language.PTS.Value
-import Language.PTS.WHNF
+import Language.PTS.Value.Check
 
 -- | Evaluate 'Term' into 'Value'.
 class Eval t where
-    eval_ :: (PrettyPrec err, AsErr err, Specification s) => t s a -> ValueIntro err s a
+    eval_
+        :: (Specification s, PrettyPrec err, AsErr err, PrettyPrec a)
+        => (a -> Maybe (ValueIntro err s a))  -- ^ Context
+        -> t s a                              -- ^ Term
+        -> ValueIntro err s a                 -- ^ Term's type
+        -> ValueIntro err s a                 -- ^ Evaluated term, value
 
-instance Eval TermInf where
-    eval_ (Var x)          = ValueCoerce (ValueVar x)
-    eval_ (Sort s)         = ValueSort s
-    eval_ (App f x)        = case whnf f of
-        -- do reduction in Term, as far as possible. Then convert to 'Value'.
-        Ann (Lam _ b) (Pi _ xt _) ->
-            eval_ (instantiate1H (ann_ x xt) b)
-        _ -> valueApp (eval_ f) (eval_ x)
-    eval_ (Ann x _  )      = eval_ x
-    eval_ (Pi n a b)       = ValuePi n (eval_ a)  (toScope $ eval_ $ fromScopeH b)
+instance Eval TermInf where eval_ ctx term _ = evalInf ctx term
+instance Eval TermChk where eval_ = evalChk
+
+evalInf
+    :: (Specification s, PrettyPrec err, AsErr err, PrettyPrec a)
+    => (a -> Maybe (ValueIntro err s a))  -- ^ Context
+    -> TermInf s a
+    -> ValueIntro err s a
+evalInf _ctx (Var x)    = ValueCoerce (ValueVar x)
+evalInf _ctx (Sort s)   = ValueSort s
+evalInf  ctx (App f x)  = case evalInf ctx f of 
+    ValueLam _n t f' -> instantiate1 (evalChk ctx x t) f'
+    ValueErr err     -> ValueErr err
+    ValueCoerce f'   -> case valueType_ ctx f' of
+        ValueErr err    -> ValueErr err
+        ValuePi _x t _b -> ValueCoerce (ValueApp f' (evalChk ctx x t))
+        _               -> ValueErr $ _Err # ApplyPanic (ppp0 f')
+    f'               -> ValueErr $ _Err # ApplyPanic (ppp0 f')
+evalInf ctx (Ann x t)  = evalChk ctx x (evalInf ctx t)
+evalInf ctx (Pi n a b) = ValuePi n a' (toScope $ evalInf (addContext a' ctx) $ fromScopeH b)
+  where
+    a' = evalInf ctx a
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
-    eval_ TermBool               = ValueBool
-    eval_ TermTrue               = ValueTrue
-    eval_ TermFalse              = ValueFalse
-    eval_ (TermBoolElim a t f b) = valueBoolElim (eval_ a) (eval_ t) (eval_ f) (eval_ b)
+evalInf _ctx TermBool               = ValueBool
+evalInf _ctx TermTrue               = ValueTrue
+evalInf _ctx TermFalse              = ValueFalse
+evalInf  ctx (TermBoolElim a t f b) = valueBoolElim a'
+    (evalChk ctx t $ valueApp a' ValueTrue)
+    (evalChk ctx f $ valueApp a' ValueFalse)
+    (evalChk ctx b $ ValueBool)
+  where
+    a' = evalInf ctx a
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
-    eval_ TermNat               = ValueNat
-    eval_ TermNatZ              = ValueNatZ
-    eval_ (TermNatS n)          = ValueNatS (eval_ n)
-    eval_ (TermNatElim a z s n) = valueNatElim (eval_ a) (eval_ z) (eval_ s) (eval_ n)
+evalInf _ctx TermNat               = ValueNat
+evalInf _ctx TermNatZ              = ValueNatZ
+evalInf  ctx (TermNatS n)          = ValueNatS (evalChk ctx n ValueNat)
+evalInf  ctx (TermNatElim a z s n) = valueNatElim a'
+    (evalChk ctx z $ valueApp a' ValueNatZ)
+    (evalChk ctx s $ do
+        _ <- pi_ "l" ValueNat ("a" @@ "l" ~> "a" @@ (ValueNatS "l"))
+        a')
+    (evalChk ctx n $ ValueNat)
+  where
+    a' = evalChk ctx a (ValueNat ~> sort_ typeSort)
 #endif
 
-instance Eval TermChk where
-    eval_ (Inf u)   = eval_ u
-    eval_ (Lam n b) = eta' n $ eval_ $ fromScopeH b
+evalChk
+    :: (Specification s, PrettyPrec err, AsErr err, PrettyPrec a)
+    => (a -> Maybe (ValueIntro err s a))  -- ^ Context
+    -> TermChk s a
+    -> ValueIntro err s a
+    -> ValueIntro err s a
+evalChk  ctx (Inf u)        _t               = evalInf ctx u
+evalChk  ctx (Lam n b)      (ValuePi _ t tb) = eta' n t $ evalChk (addContext t ctx) (fromScopeH b) (fromScope tb)
+evalChk _ctx term@(Lam _ _) t                = ValueErr $ _Err # LambdaNotPi (ppp0 t) (ppp0 term) []
+
+addContext
+    :: ValueIntro err s a                  -- ^ x
+    -> (a -> Maybe (ValueIntro err s a))   -- ^ context
+    -> Var IrrSym a
+    -> Maybe (ValueIntro err s (Var b a))
+addContext x _ (B _) = Just (F <$> x)
+addContext _ f (F x) = fmap F <$> f x
 
 -- | Construct lambda from a bound scope.
 --
 -- If @eta@ flag is enabled, perform eta-conversion.
-eta' :: IrrSym -> ValueIntro err s (Var IrrSym a) -> ValueIntro err s a
+eta'
+    :: IrrSym                           -- ^ variable
+    -> ValueIntro err s a               -- ^ variable's type
+    -> ValueIntro err s (Var IrrSym a)  -- ^ body
+    -> ValueIntro err s a               -- ^ lambda
 #ifdef LANGUAGE_PTS_HAS_ETA
-eta' _ (ValueCoerce (ValueApp f (ValueCoerce (ValueVar (B _)))))
+eta' _ t (ValueCoerce (ValueApp f (ValueCoerce (ValueVar (B _)))))
     -- bound variable is free in @f@
     | Just f' <- traverse (unvar (const Nothing) Just) f = ValueCoerce f'
 #endif
-eta' n s = ValueLam n (toScope s)
+eta' n t s = ValueLam n t (toScope s)
 
 #if LANGUAGE_PTS_HAS_ETA
 -- $eta
@@ -92,7 +142,8 @@ eta' n s = ValueLam n (toScope s)
 -- >>> prettyPut term
 -- λ x → f x
 --
--- >>> prettyPut (eval_ term :: Value LambdaStar)
+-- >>> let ctx = const $ Just $ "a" ~> "b"
+-- >>> prettyPut (evalChk ctx term ("a" ~> "b") :: Value LambdaStar)
 -- f
 --
 #else
@@ -104,8 +155,9 @@ eta' n s = ValueLam n (toScope s)
 -- >>> prettyPut term
 -- λ x → f x
 --
--- >>> prettyPut (eval_ term :: Value LambdaStar)
--- λ x → f x
+-- >>> let ctx = const $ Just $ "a" ~> "b"
+-- >>> prettyPut (evalChk ctx term ("a" ~> "b") :: Value LambdaStar)
+-- λ (x : a) → f x
 --
 #endif
 

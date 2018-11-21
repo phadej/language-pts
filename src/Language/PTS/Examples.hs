@@ -23,7 +23,6 @@ module Language.PTS.Examples (
     lambdaStarPlus,
     natCtx,
 #ifdef LANGUAGE_PTS_HAS_NAT
-    natEx,
     natSucc,
     natCtx',
 #endif
@@ -357,10 +356,6 @@ natElimType' = pi_ "m"
     mzero = "m" @@ "zero"
     msucc = pi_ "l" "Nat" ("m" @@ "l" ~> "m" @@ ("succ" @@ "l"))
     res   = pi_ "k" "Nat" ("m" @@ "k")
-
-
-natEx :: Value LambdaStar
-natEx = (lam_ "x" $ ValueCoerce $ ValueNatElim (lam_ "?" $ ValueNat) ValueNatZ (lams_ ["k","x"] $ ValueNatS (ValueNatS "x")) "x") `valueApp` ValueNatS ValueNatZ
 
 natSucc :: Term LambdaStar
 natSucc = let_ natCtx' $ "s" @@ ("s" @@ "z")
