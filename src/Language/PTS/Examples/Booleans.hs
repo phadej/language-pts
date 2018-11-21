@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Language.PTS.Examples.Bool (
+module Language.PTS.Examples.Booleans (
     churchBooleansScript,
 #if defined(LANGUAGE_PTS_HAS_BOOL) && defined(LANGUAGE_PTS_HAS_NAT)
     booleansScript,
