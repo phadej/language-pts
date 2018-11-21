@@ -62,11 +62,12 @@ import qualified Text.PrettyPrint.Compact as PP
 demo_ :: forall s. Specification s => (Sym -> Maybe (Value s)) -> Term s -> IO ()
 demo_ ctx term = case type_ ctx term >>= errorlessValueIntro of
     Left err -> prettyPut (err :: Err)
-    Right (t :: Value s) -> case errorlessValueIntro $ eval_ term of
+    Right (t :: Value s) -> case errorlessValueIntro $ eval_ ctx term t of
         Left err -> prettyPut (err :: Err)
-        Right (v :: Value s)  -> prettyPutWith opts $ pppHang 4
+        -- we quote term before printing (strips type lambda type annotations)
+        Right v  -> prettyPutWith opts $ pppHang 4
             (ppp0 term)
-            (pppChar '↪' <+> ppp0 v </> pppChar ':' <+> ppp0 t)
+            (pppChar '↪' <+> ppp0 (quote_ v) </> pppChar ':' <+> ppp0 t)
 
   where
     opts = PP.defaultOptions { PP.optsPageWidth = 60 }

@@ -67,7 +67,6 @@ library
   if flag(fix)
     cpp-options: -DLANGUAGE_PTS_HAS_FIX
 
-
   build-depends:
     , base            ^>=4.10.1.0 || ^>=4.11.1.0 || ^>=4.12.0.0
     , base-compat     ^>=0.10.4
@@ -95,9 +94,13 @@ library
     Language.PTS.Sym
     Language.PTS.Systems
     Language.PTS.Value
+    Language.PTS.Value.Check
     Language.PTS.WHNF
 
     Language.PTS.Examples
-    Language.PTS.Examples.Bool
+    Language.PTS.Examples.Booleans
+    Language.PTS.Examples.Contexts
+    Language.PTS.Examples.Identity
+    Language.PTS.Examples.Errors
 
     Text.Show.Extras

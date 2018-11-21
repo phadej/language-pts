@@ -8,7 +8,7 @@ haddock :
 doctest :
 	doctest -XCPP -DLANGUAGE_PTS_HAS_NAT -DLANGUAGE_PTS_HAS_BOOL --fast src/
 
-doctest-all :
+doctest-all : doctest
 	doctest -XCPP --fast src/
 	doctest -XCPP -DLANGUAGE_PTS_HAS_NAT --fast src/
 	doctest -XCPP -DLANGUAGE_PTS_HAS_BOOL --fast src/
