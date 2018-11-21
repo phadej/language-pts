@@ -94,10 +94,8 @@ data TermInf s a
     | TermBool
       -- ^ Booleans.
       --
-      -- We assume they are type. (Or we could parametrise them by sort!)
-      --
       -- \[\frac
-      -- {\star \in \mathcal{S}}
+      -- {}
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}} \Rightarrow \color{darkred}\star }
       -- \]
 
@@ -119,7 +117,7 @@ data TermInf s a
 
     -- | Boolean elimination.
     --
-    -- Here we have to assume the target sort (or parametrise further!).
+    -- /Note:/ \(\mathbb{B}\mathsf{-elim}\) is universe-polymorphic.
     --
     -- \[ \frac
       -- {\array{
@@ -137,7 +135,7 @@ data TermInf s a
       --  \qquad
       --  P[x \mapsto b] \leadsto \sigma
       -- }}
-      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}\mathsf{-elim}\,x\,P\,t\,f\,b} \Rightarrow \color{darkred}{\sigma} }
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}\mathsf{-elim}\,(\lambda x \to P) \,t\,f\,b} \Rightarrow \color{darkred}{\sigma} }
     -- \]
     | TermBoolElim IrrSym (Scope IrrSym (TermInf s) a) (TermChk s a) (TermChk s a) (TermChk s a)
 #endif
