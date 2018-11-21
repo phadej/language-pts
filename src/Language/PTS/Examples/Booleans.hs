@@ -1,9 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Language.PTS.Examples.Booleans (
     churchBooleansScript,
-#if defined(LANGUAGE_PTS_HAS_BOOL) && defined(LANGUAGE_PTS_HAS_NAT)
+#ifdef LANGUAGE_PTS_HAS_BOOL
+#ifdef LANGUAGE_PTS_HAS_NAT
     booleansScript,
 #endif
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
+    booleansPrimScript,
+#endif
+#endif
+
     ) where
 
 import Language.PTS
@@ -234,6 +240,194 @@ booleansScript = do
     example_ $ "contrived" @@@ TermFalse
 #endif
 
+-------------------------------------------------------------------------------
+-- Boolean primitive operations
+-------------------------------------------------------------------------------
+
+#ifdef LANGUAGE_PTS_HAS_BOOL
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
+
+-- | Primitive operations can be more powerful.
+--
+-- Note how we defined the 'Value':
+--
+-- @
+-- data 'ValueIntro' err s a
+--     ...
+--     | 'ValueTrue'
+--     | 'ValueFalse'
+--     ...
+--
+-- data 'ValueElim' err s a
+--     ...
+--     | 'ValueAnd' ('ValueElim' err s a) ('ValueElim' err s a)
+--     ...
+-- @
+--
+-- By /construction/, there cannot be literal Boolean in evaluated 'ValueAnd'.
+-- Following script demonstrates this functionality:
+--
+-- >>> runLoud $ spec_ SysFStar >> booleansPrimScript
+-- -- 1. Using elimination
+-- -----------------------
+-- --
+-- λ» :define if : ∀ r → 𝔹 → r → r → r
+--               = λ r b t f → 𝔹-elim (λ _ → r) t f b
+-- λ» :define and : 𝔹 → 𝔹 → 𝔹 = λ x y → if 𝔹 x y false
+-- --
+-- λ» :example and
+-- ↪ λ x y → 𝔹-elim (λ _ → 𝔹) y false x : 𝔹 → 𝔹 → 𝔹
+-- --
+-- λ» :example and true true
+-- ↪ true : 𝔹
+-- --
+-- λ» :example and true false
+-- ↪ false : 𝔹
+-- --
+-- λ» :example and false true
+-- ↪ false : 𝔹
+-- --
+-- λ» :example and false false
+-- ↪ false : 𝔹
+-- --
+-- -- 1.1. Partial evaluation
+-- --
+-- -- Because we scrutinise the first argument, following expressions reduce (well):
+-- λ» :example λ b → and true b : 𝔹 → 𝔹
+-- ↪ λ b → b : 𝔹 → 𝔹
+-- --
+-- λ» :example λ b → and false b : 𝔹 → 𝔹
+-- ↪ λ b → false : 𝔹 → 𝔹
+-- --
+-- -- ... but these doesn't:
+-- λ» :example λ b → and b true : 𝔹 → 𝔹
+-- ↪ λ b → 𝔹-elim (λ _ → 𝔹) true false b : 𝔹 → 𝔹
+-- --
+-- λ» :example λ b → and b false : 𝔹 → 𝔹
+-- ↪ λ b → 𝔹-elim (λ _ → 𝔹) false false b : 𝔹 → 𝔹
+-- --
+-- -- 2. Built-in primitive
+-- ------------------------
+-- --
+-- λ» :define and# : 𝔹 → 𝔹 → 𝔹 = λ x y → 𝔹-and x y
+-- --
+-- λ» :example and#
+-- ↪ λ x y → 𝔹-and x y : 𝔹 → 𝔹 → 𝔹
+-- --
+-- λ» :example and# true true
+-- ↪ true : 𝔹
+-- --
+-- λ» :example and# true false
+-- ↪ false : 𝔹
+-- --
+-- λ» :example and# false true
+-- ↪ false : 𝔹
+-- --
+-- λ» :example and# false false
+-- ↪ false : 𝔹
+-- --
+-- -- 2.1. Partial evaluation
+-- --
+-- -- With primitive and we get more aggressive reduction behaviour
+-- λ» :example λ b → and# true b : 𝔹 → 𝔹
+-- ↪ λ b → b : 𝔹 → 𝔹
+-- --
+-- λ» :example λ b → and# false b : 𝔹 → 𝔹
+-- ↪ λ b → false : 𝔹 → 𝔹
+-- --
+-- λ» :example λ b → and# b true : 𝔹 → 𝔹
+-- ↪ λ b → b : 𝔹 → 𝔹
+-- --
+-- λ» :example λ b → and# b false : 𝔹 → 𝔹
+-- ↪ λ b → false : 𝔹 → 𝔹
+-- --
+-- -- In fact, literal cannot be in evaluated and-expression:
+-- λ» :example λ x y z → and# (and# x true)
+--                            (and# (and# y true) z)
+--                 : 𝔹 → 𝔹 → 𝔹 → 𝔹
+-- ↪ λ x y z → 𝔹-and x (𝔹-and y z) : 𝔹 → 𝔹 → 𝔹 → 𝔹
+-- --
+-- λ» :example λ x y z → and# (and# x false)
+--                            (and# (and# y true) z)
+--                 : 𝔹 → 𝔹 → 𝔹 → 𝔹
+-- ↪ λ x y z → false : 𝔹 → 𝔹 → 𝔹 → 𝔹
+-- ∎
+--
+booleansPrimScript :: Script s m => m ()
+booleansPrimScript = do
+    section_ "Using elimination"
+
+    define_ "if"
+        $$ forall_ "r" (TermBool ~> "r" ~> "r" ~> "r")
+        $$ lams_ ["r", "b", "t", "f"]
+              (Inf $ TermBoolElim "_" (lift "r") "t" "f" "b")
+
+    define_ "and"
+        $$ TermBool ~> TermBool ~> TermBool
+        $$ lams_ ["x", "y"] ("if" @@@ TermBool @@ "x" @@ "y" @@@ TermFalse)
+
+    example_ "and"
+    example_ $ "and" @@@ TermTrue  @@@ TermTrue
+    example_ $ "and" @@@ TermTrue  @@@ TermFalse
+    example_ $ "and" @@@ TermFalse @@@ TermTrue
+    example_ $ "and" @@@ TermFalse @@@ TermFalse
+
+    subsection_ "Partial evaluation"
+
+    comment_ "Because we scrutinise the first argument, following expressions reduce (well):"
+    example_ $ lam_ "b" ("and" @@@ TermTrue @@ "b")  -:- TermBool ~> TermBool
+    example_ $ lam_ "b" ("and" @@@ TermFalse @@ "b") -:- TermBool ~> TermBool
+
+    comment_ "... but these doesn't:"
+    example_ $ lam_ "b" ("and" @@ "b" @@@ TermTrue)   -:- TermBool ~> TermBool
+    example_ $ lam_ "b" ("and" @@ "b" @@@ TermFalse ) -:- TermBool ~> TermBool
+
+    section_ "Built-in primitive"
+
+    define_ "and#"
+        $$ TermBool ~> TermBool ~> TermBool
+        $$ lams_ ["x", "y"] (Inf (TermAnd "x" "y"))
+
+    example_ "and#"
+    example_ $ "and#" @@@ TermTrue  @@@ TermTrue
+    example_ $ "and#" @@@ TermTrue  @@@ TermFalse
+    example_ $ "and#" @@@ TermFalse @@@ TermTrue
+    example_ $ "and#" @@@ TermFalse @@@ TermFalse
+
+    subsection_ "Partial evaluation"
+
+    comment_ "With primitive and we get more aggressive reduction behaviour"
+    example_ $ lam_ "b" ("and#" @@@ TermTrue @@ "b")  -:- TermBool ~> TermBool
+    example_ $ lam_ "b" ("and#" @@@ TermFalse @@ "b") -:- TermBool ~> TermBool
+    example_ $ lam_ "b" ("and#" @@ "b" @@@ TermTrue)   -:- TermBool ~> TermBool
+    example_ $ lam_ "b" ("and#" @@ "b" @@@ TermFalse ) -:- TermBool ~> TermBool
+
+    comment_ "In fact, literal cannot be in evaluated and-expression:"
+    let (/\) :: TermInf s Sym -> TermInf s Sym -> TermInf s Sym
+        x /\ y = "and#" @@ Inf x @@ Inf y
+
+    example_ $ lams_ ["x", "y", "z"]
+        (Inf $ ("x" /\ TermTrue) /\ ("y" /\ TermTrue /\ "z"))
+        -:- TermBool ~> TermBool ~> TermBool ~> TermBool
+
+    example_ $ lams_ ["x", "y", "z"]
+        (Inf $ ("x" /\ TermFalse) /\ ("y" /\ TermTrue /\ "z"))
+        -:- TermBool ~> TermBool ~> TermBool ~> TermBool
+
+{-
+    section_ "Partial application"
+    comment_ "Different from partial /evaluation/"
+
+    example_ $ "and" @@@ TermTrue
+    example_ $ "and" @@@ TermFalse
+    example_ $ lam_ "b" ("and" @@ "b") -:- TermBool ~> TermBool ~> TermBool
+    example_ $ "and#" @@@ TermTrue
+    example_ $ "and#" @@@ TermFalse
+    example_ $ lam_ "b" ("and#" @@ "b") -:- TermBool ~> TermBool ~> TermBool
+-}
+
+#endif
+#endif
 -- $setup
 -- >>> :seti -XOverloadedStrings -XTypeApplications
 -- >>> import Language.PTS.Pretty

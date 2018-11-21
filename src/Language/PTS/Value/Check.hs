@@ -28,6 +28,9 @@ valueType_ ctx (ValueApp f x) = case valueType_ ctx f of
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
 valueType_ _ctx (ValueBoolElim _ p _ _ b) = instantiate1 (ValueCoerce b) p
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
+valueType_ _ctx (ValueAnd _ _) = ValueBool
+#endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT

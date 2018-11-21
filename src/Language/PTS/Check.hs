@@ -102,6 +102,13 @@ rtype_ ts ctx term = case term of
         rcheck_ ts' ctx b ValueBool
 
         return $ instantiate1 (eval_ ctx b ValueBool) p''
+
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
+    TermAnd x y -> do
+        rcheck_ ts' ctx x ValueBool
+        rcheck_ ts' ctx y ValueBool
+        return ValueBool
+#endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT

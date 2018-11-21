@@ -1,6 +1,6 @@
 packages: .
 
-constraints: language-pts +nat +bool
+constraints: language-pts +nat +bool +bool-prim
 -- constraints: language-pts +fix
 
 constraints: transformers installed

@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Language.PTS.Examples.Hurkens (
     hurkensScript,
+    defineU,
     ) where
 
 import Data.String  (IsString)

@@ -30,7 +30,8 @@ module Language.PTS.Eval (
     -- $eta
     ) where
 
-import Control.Lens ((#))
+import Control.Monad (void)
+import Control.Lens (review)
 
 import Language.PTS.Bound
 import Language.PTS.Error
@@ -67,8 +68,8 @@ evalInf  ctx (App f x)  = case evalInf ctx f of
     ValueCoerce f'   -> case valueType_ ctx f' of
         ValueErr err    -> ValueErr err
         ValuePi _x t _b -> ValueCoerce (ValueApp f' (evalChk ctx x t))
-        _               -> ValueErr $ _Err # ApplyPanic (ppp0 f')
-    f'               -> ValueErr $ _Err # ApplyPanic (ppp0 f')
+        _               -> ValueErr $ review _Err $ ApplyPanic (ppp0 f')
+    f'               -> ValueErr $ review _Err $ ApplyPanic (ppp0 f')
 evalInf ctx (Ann x t)  = evalChk ctx x (evalInf ctx t)
 evalInf ctx (Pi n a b) = ValuePi n a' (toScope $ evalInf (addContext a' ctx) $ fromScopeH b)
   where
@@ -83,11 +84,20 @@ evalInf  ctx (TermBoolElim x p t f b) = case evalChk ctx b ValueBool of
     ValueFalse     -> f'
     ValueErr err   -> ValueErr err
     ValueCoerce b' -> ValueCoerce $ ValueBoolElim x p' t' f' b'
-    b' -> error $ "panic! valueAppBind ValueBoolElim\n" ++ prettyShow b ++ "\n" ++ prettyShow b'
+    b'             -> ValueErr $ review _Err $ ApplyPanic $ ppp0 (void f', void b')
   where
     p' = toScope $ evalInf (addContext ValueBool ctx) $ fromScope p
     t' = evalChk ctx t $ instantiate1 ValueTrue p'
     f' = evalChk ctx f $ instantiate1 ValueFalse p'
+
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
+evalInf  ctx (TermAnd x y) = do
+    xy <- ValueCoerce (ValueAnd (ValueVar True) (ValueVar False))
+    if xy then x' else y'
+  where
+    x' = evalChk ctx x ValueBool
+    y' = evalChk ctx y ValueBool
+#endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
@@ -112,7 +122,7 @@ evalChk
     -> ValueIntro err s a
 evalChk  ctx (Inf u)        _t               = evalInf ctx u
 evalChk  ctx (Lam n b)      (ValuePi _ t tb) = eta' n t $ evalChk (addContext t ctx) (fromScopeH b) (fromScope tb)
-evalChk _ctx term@(Lam _ _) t                = ValueErr $ _Err # LambdaNotPi (ppp0 t) (ppp0 term) []
+evalChk _ctx term@(Lam _ _) t                = ValueErr $ review _Err $ LambdaNotPi (ppp0 t) (ppp0 term) []
 
 addContext
     :: ValueIntro err s a                  -- ^ x
