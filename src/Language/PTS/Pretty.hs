@@ -72,7 +72,7 @@ module Language.PTS.Pretty (
     pppScopedIrrSym,
     -- * Combinators
     -- | The @pretty-compact@ combinators wrapped in 'PrettyM'.
-    pppChar, pppText, pppIntegral,
+    pppChar, pppText, pppIntegral, pppIntegralSub,
     (<+>), (</>), ($$$),
     pppHsepPunctuated,
     pppSepPunctuated,
@@ -249,24 +249,39 @@ toU t
     | null ds   = U 0 t
     | otherwise = U (read (reverse ds)) (pack (reverse rn))
   where
-    (ds, rn) = span isDigit (reverse (unpack t))
+    (ds, rn) = span isDigit (reverse (map unsubDigit (unpack t)))
 
 fromU :: U -> String
 fromU (U n t)
     | n <= 0    = unpack t
-    | otherwise = unpack t ++ map sub (show n)
+    | otherwise = unpack t ++ map subDigit (show n)
   where
-    sub '0' = '₀'
-    sub '1' = '₁'
-    sub '2' = '₂'
-    sub '3' = '₃'
-    sub '4' = '₄'
-    sub '5' = '₅'
-    sub '6' = '₆'
-    sub '7' = '₇'
-    sub '8' = '₈'
-    sub '9' = '₉'
-    sub c   = c
+
+subDigit :: Char -> Char
+subDigit '0' = '₀'
+subDigit '1' = '₁'
+subDigit '2' = '₂'
+subDigit '3' = '₃'
+subDigit '4' = '₄'
+subDigit '5' = '₅'
+subDigit '6' = '₆'
+subDigit '7' = '₇'
+subDigit '8' = '₈'
+subDigit '9' = '₉'
+subDigit c   = c
+
+unsubDigit :: Char -> Char
+unsubDigit '₀' = '0'
+unsubDigit '₁' = '1'
+unsubDigit '₂' = '2'
+unsubDigit '₃' = '3'
+unsubDigit '₄' = '4'
+unsubDigit '₅' = '5'
+unsubDigit '₆' = '6'
+unsubDigit '₇' = '7'
+unsubDigit '₈' = '8'
+unsubDigit '₉' = '9'
+unsubDigit c   = c
 
 data Stream a = a :> Stream a
 
@@ -380,6 +395,9 @@ pppText = return . PP.text
 
 pppIntegral :: Integral a => a -> PrettyM Doc
 pppIntegral = return . PP.integer . fromIntegral
+
+pppIntegralSub :: Integral a => a -> PrettyM Doc
+pppIntegralSub = return . PP.text . map subDigit . show . fromIntegral
 
 infixr 6 <+>
 infixr 5 $$$, </>

@@ -188,23 +188,24 @@ instance HasBox CoC where box_ = CoCBox
 -- \]
 --
 -- >>> prettyPut $ specificationDoc (star_ :: MartinLof)
--- 𝓢: 𝓤, 𝓤1, 𝓤2
--- 𝓐: 𝓤 : 𝓤1, 𝓤1 : 𝓤2, 𝓤2 : 𝓤3
+-- 𝓢: 𝓤, 𝓤₁, 𝓤₂
+-- 𝓐: 𝓤 : 𝓤₁, 𝓤₁ : 𝓤₂, 𝓤₂ : 𝓤₃
 -- 𝓡: (𝓤,𝓤,𝓤),
---    (𝓤,𝓤1,𝓤1),
---    (𝓤1,𝓤,𝓤1),
---    (𝓤1,𝓤1,𝓤1),
---    (𝓤,𝓤2,𝓤2),
---    (𝓤2,𝓤,𝓤2),
---    (𝓤1,𝓤2,𝓤2),
---    (𝓤,𝓤3,𝓤3),
---    (𝓤3,𝓤,𝓤3), ...
+--    (𝓤,𝓤₁,𝓤₁),
+--    (𝓤₁,𝓤,𝓤₁),
+--    (𝓤₁,𝓤₁,𝓤₁),
+--    (𝓤,𝓤₂,𝓤₂),
+--    (𝓤₂,𝓤,𝓤₂),
+--    (𝓤₁,𝓤₂,𝓤₂),
+--    (𝓤,𝓤₃,𝓤₃),
+--    (𝓤₃,𝓤,𝓤₃), ...
+--
 --
 newtype MartinLof = MartinLof Natural deriving (Eq, Show, Enum)
 
 instance PrettyPrec MartinLof where
     ppp _ (MartinLof 0) = "𝓤"
-    ppp _ (MartinLof n) = "𝓤" <> pppIntegral n
+    ppp _ (MartinLof n) = "𝓤" <> pppIntegralSub n
 
 instance Specification MartinLof where
     typeSort     = MartinLof 0

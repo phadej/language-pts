@@ -7,7 +7,7 @@ module Language.PTS.Examples.Hurkens (
 import Data.String  (IsString)
 import Language.PTS
 
--- | /A Simplification of Girard's Paradox/ by Hurkens (TCLA '95)
+-- | /A Simplification of Girard's Paradox/ by Hurkens (TLCA '95)
 --
 -- Hurkens' version fails in HOL, there are no (△,□,□)-rule:
 --
@@ -26,8 +26,16 @@ import Language.PTS
 -- >>> runSilent $ spec_ (MartinLof 0) >> hurkensScript
 -- λ» :define ⊥ : 𝓤 = ∀ x → x
 -- error:
--- • Couldn't match expected type 𝓤 with actual type 𝓤1
+-- • Couldn't match expected type 𝓤 with actual type 𝓤₁
 -- • In the expression: ∀ x → x
+--
+-- ...or if we try to define @U@, it will be in the wrong universe:
+--
+-- >>> runSilent $ spec_ (MartinLof 0) >> defineU
+-- λ» :define U : 𝓤₁ = Π (X : 𝓤₁) → (((X → 𝓤)..
+-- error:
+-- • Couldn't match expected type 𝓤₁ with actual type 𝓤₂
+-- • In the expression: Π (X : 𝓤₁) → (((X → 𝓤) → 𝓤) → X) → (X → 𝓤) → 𝓤
 --
 -- __However__ in System U, the script goes through:
 --
@@ -144,6 +152,23 @@ hurkensScript = do
     section_ "Falsehood evidence"
 
     define_ "¡Ay, caramba!" $$ bot $$ "negH" @@ "H"
+
+defineU :: forall s m. Script s m => m ()
+defineU = do
+    let tstar, tbox :: CanSort u => u s a
+        tstar = sort_ typeSort
+        tbox  = sort_ typeSortSort
+
+    section_ "Power set and paradoxial universe"
+
+    comment_ "we need (△,△,△) to define ℘ S = S → ⋆"
+    comment_ "luckily we have Haskell as the meta-language"
+    let power :: TermInf s a -> TermInf s a
+        power s = s ~> tstar
+
+    define_ "U"
+        $$ tbox
+        $$ pi_ "X" tbox ((power (power "X") ~> "X") ~> power (power "X"))
 
 -- $setup
 -- >>> :set -XOverloadedStrings -XTypeApplications
