@@ -83,25 +83,25 @@ rtype_ ts ctx term = case term of
     TermTrue   -> return ValueBool
     TermFalse  -> return ValueBool
 
-    TermBoolElim p t f b -> do
+    TermBoolElim _x p t f b -> do
+        let as = typeSort -- sort of Booleans
+
         -- check sorts
-        pt <- rtype_ ts' ctx p
-        case pt of
-            ValuePi _n ValueBool (Scope (ValueSort s)) -> do
-                let as = typeSort
-                _ps <- case rule as s of
-                    Nothing -> throwErr $ NoRule (ppp0 as) (ppp0 s) ts
-                    Just ps -> pure ps
+        let p'   = fromScope p
+        let ctx' = addContext ValueBool ctx
+        bs <- rsort_ ts' (addContext ValueBool ctx) p'
 
-                let p' = eval_ ctx p pt
+        case rule as bs of
+            Nothing -> throwErr $ NoRule (ppp0 as) (ppp0 bs) ts
+            Just _  -> pure ()
 
-                rcheck_ ts' ctx t (valueApp p' ValueTrue)
-                rcheck_ ts' ctx f (valueApp p' ValueFalse)
-                rcheck_ ts' ctx b ValueBool
+        let p'' = toScope $ eval_ ctx' p' (ValueSort bs)
 
-                return $ p' `valueApp` eval_ ctx b ValueBool
+        rcheck_ ts' ctx t (instantiate1 ValueTrue  p'')
+        rcheck_ ts' ctx f (instantiate1 ValueFalse p'')
+        rcheck_ ts' ctx b ValueBool
 
-            _ -> throwErr $ NotAFunction (ppp0 pt) (ppp0 p) (ppp0 b) ts'
+        return $ instantiate1 (eval_ ctx b ValueBool) p''
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT

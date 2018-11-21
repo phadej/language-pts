@@ -120,23 +120,23 @@ data TermInf s a
     --
     -- \[ \frac
       -- {\array{
-      --  \color{darkblue}\Gamma \vdash \color{darkgreen}P \Rightarrow \color{darkred}{\mathbb{B} \to s}
+      --  \color{darkblue}{\Gamma, x : \mathbb{B}} \vdash \color{darkgreen}P \Rightarrow \color{darkred}{s}
       --  \qquad
       --  (\star, s, s') \in \mathcal{R}
       --  \cr
-      --  P\,\mathsf{True} \leadsto \tau \qquad
+      --  P[x \mapsto \mathsf{True}] \leadsto \tau \qquad
       --  \color{darkblue}\Gamma \vdash \color{darkgreen}t \Leftarrow \color{darkred}{\tau}
       --  \cr
-      --  P\,\mathsf{False} \leadsto \tau' \qquad
+      --  P[x \mapsto \mathsf{False}] \leadsto \tau' \qquad
       --  \color{darkblue}\Gamma \vdash \color{darkgreen}f \Leftarrow \color{darkred}{\tau'}
       --  \cr
       --  \color{darkblue}\Gamma \vdash \color{darkgreen}b \Leftarrow \color{darkred}{\mathbb{B}}
       --  \qquad
-      --  P\,b \leadsto \sigma
+      --  P[x \mapsto b] \leadsto \sigma
       -- }}
-      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}\mathsf{-elim}\,P\,t\,f\,b} \Rightarrow \color{darkred}{\sigma} }
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}\mathsf{-elim}\,x\,P\,t\,f\,b} \Rightarrow \color{darkred}{\sigma} }
     -- \]
-    | TermBoolElim (TermInf s a) (TermChk s a) (TermChk s a) (TermChk s a)
+    | TermBoolElim IrrSym (Scope IrrSym (TermInf s) a) (TermChk s a) (TermChk s a) (TermChk s a)
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
@@ -255,15 +255,16 @@ instance Show s => Show1 (TermInf s) where
         "Sort" d x
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
-    liftShowsPrec _  _  _ TermBool               = showString "TermBool"
-    liftShowsPrec _  _  _ TermTrue               = showString "TermTrue"
-    liftShowsPrec _  _  _ TermFalse              = showString "TermFalse"
-    liftShowsPrec sp sl d (TermBoolElim x y z w) = showsQuadWith
+    liftShowsPrec _  _  _ TermBool                 = showString "TermBool"
+    liftShowsPrec _  _  _ TermTrue                 = showString "TermTrue"
+    liftShowsPrec _  _  _ TermFalse                = showString "TermFalse"
+    liftShowsPrec sp sl d (TermBoolElim x y z w u) = showsQuintWith
+        showsPrec
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
-        "TermBoolElim" d x y z w
+        "TermBoolElim" d x y z w u
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
@@ -303,9 +304,9 @@ pppInf d (Ann x t)   = pppAnnotation d (pppChk PrecAnn x) (pppInf PrecAnn t)
 pppInf _ TermBool    = pppChar '𝔹'
 pppInf _ TermTrue    = pppText "true"
 pppInf _ TermFalse   = pppText "false"
-pppInf d (TermBoolElim a t f b) = pppApplication d
+pppInf d (TermBoolElim x p t f b) = pppApplication d
         (pppText "𝔹-elim")
-        [ pppInf PrecApp a
+        [ pppScopedIrrSym x $ \xDoc -> pppLambda PrecApp [xDoc] $ pppInf PrecLambda $ instantiate1return xDoc p
         , pppChk PrecApp t
         , pppChk PrecApp f
         , pppChk PrecApp b
@@ -388,11 +389,11 @@ instance Monad (TermInf s) where
     Pi n a b >>= f = Pi n (a >>= f) (b >>== f)
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
-    TermBool             >>= _ = TermBool
-    TermTrue             >>= _ = TermTrue
-    TermFalse            >>= _ = TermFalse
-    TermBoolElim a z s n >>= k = TermBoolElim
-        (a >>= k)
+    TermBool               >>= _ = TermBool
+    TermTrue               >>= _ = TermTrue
+    TermFalse              >>= _ = TermFalse
+    TermBoolElim x p z s n >>= k = TermBoolElim x
+        (p >>>= k)
         (z >>== k)
         (s >>== k)
         (n >>== k)

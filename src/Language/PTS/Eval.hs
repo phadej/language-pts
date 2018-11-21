@@ -61,7 +61,7 @@ evalInf
     -> ValueIntro err s a
 evalInf _ctx (Var x)    = ValueCoerce (ValueVar x)
 evalInf _ctx (Sort s)   = ValueSort s
-evalInf  ctx (App f x)  = case evalInf ctx f of 
+evalInf  ctx (App f x)  = case evalInf ctx f of
     ValueLam _n t f' -> instantiate1 (evalChk ctx x t) f'
     ValueErr err     -> ValueErr err
     ValueCoerce f'   -> case valueType_ ctx f' of
@@ -75,15 +75,19 @@ evalInf ctx (Pi n a b) = ValuePi n a' (toScope $ evalInf (addContext a' ctx) $ f
     a' = evalInf ctx a
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
-evalInf _ctx TermBool               = ValueBool
-evalInf _ctx TermTrue               = ValueTrue
-evalInf _ctx TermFalse              = ValueFalse
-evalInf  ctx (TermBoolElim a t f b) = valueBoolElim a'
-    (evalChk ctx t $ valueApp a' ValueTrue)
-    (evalChk ctx f $ valueApp a' ValueFalse)
-    (evalChk ctx b $ ValueBool)
+evalInf _ctx TermBool                 = ValueBool
+evalInf _ctx TermTrue                 = ValueTrue
+evalInf _ctx TermFalse                = ValueFalse
+evalInf  ctx (TermBoolElim x p t f b) = case evalChk ctx b ValueBool of
+    ValueTrue      -> t'
+    ValueFalse     -> f'
+    ValueErr err   -> ValueErr err
+    ValueCoerce b' -> ValueCoerce $ ValueBoolElim x p' t' f' b'
+    b' -> error $ "panic! valueAppBind ValueBoolElim\n" ++ prettyShow b ++ "\n" ++ prettyShow b'
   where
-    a' = evalInf ctx a
+    p' = toScope $ evalInf (addContext ValueBool ctx) $ fromScope p
+    t' = evalChk ctx t $ instantiate1 ValueTrue p'
+    f' = evalChk ctx f $ instantiate1 ValueFalse p'
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT

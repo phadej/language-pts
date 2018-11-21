@@ -6,7 +6,10 @@ module Language.PTS.Examples.Bool (
     ) where
 
 #if defined(LANGUAGE_PTS_HAS_BOOL) && defined(LANGUAGE_PTS_HAS_NAT)
+import Control.Monad.Trans.Class (lift)
+
 import Language.PTS
+import Language.PTS.Bound
 
 -- | Examples of built-in Booleans.
 -- We need dependent types to be able to use dependent @𝔹-elim@.
@@ -28,7 +31,7 @@ import Language.PTS
 -- -----------------------------------
 -- --
 -- λ» :define if : ∀ r → 𝔹 → r → r → r
---               = λ a b t f → 𝔹-elim (λ _ → a : 𝔹 → 𝓤) t f b
+--               = λ r b t f → 𝔹-elim (λ _ → r) t f b
 -- --
 -- -- 3. Some simple functions on Booleans
 -- ---------------------------------------
@@ -38,7 +41,7 @@ import Language.PTS
 -- λ» :define not : 𝔹 → 𝔹 = λ b → if 𝔹 b false true
 -- --
 -- λ» :example not
--- ↪ λ b → 𝔹-elim (λ _ → 𝔹 : 𝓤) false true b : 𝔹 → 𝔹
+-- ↪ λ b → 𝔹-elim (λ _ → 𝔹) false true b : 𝔹 → 𝔹
 -- --
 -- λ» :example not true
 -- ↪ false : 𝔹
@@ -51,7 +54,7 @@ import Language.PTS
 -- λ» :define and : 𝔹 → 𝔹 → 𝔹 = λ x y → if 𝔹 x y false
 -- --
 -- λ» :example and
--- ↪ λ x y → 𝔹-elim (λ _ → 𝔹 : 𝓤) y false x : 𝔹 → 𝔹 → 𝔹
+-- ↪ λ x y → 𝔹-elim (λ _ → 𝔹) y false x : 𝔹 → 𝔹 → 𝔹
 -- --
 -- λ» :example and true true
 -- ↪ true : 𝔹
@@ -69,18 +72,12 @@ import Language.PTS
 -- ---------------------------------
 -- --
 -- λ» :define contrived
--- : Π (b : 𝔹) → 𝔹-elim (λ _ → 𝓤 : 𝔹 → 𝓤1) 𝔹 ℕ b
--- = λ b → 𝔹-elim (λ b1 → 𝔹-elim (λ _ → 𝓤 : 𝔹 → 𝓤1) 𝔹 ℕ b1
---                     : 𝔹 → 𝓤)
---                true
---                0
---                b
+-- : Π (b : 𝔹) → 𝔹-elim (λ _ → 𝓤) 𝔹 ℕ b
+-- = λ b → 𝔹-elim (λ p → 𝔹-elim (λ _ → 𝓤) 𝔹 ℕ p) true 0 b
 -- --
 -- λ» :example contrived
--- ↪ λ b →
---       𝔹-elim
---           (λ b1 → 𝔹-elim (λ _ → 𝓤 : 𝓤) 𝔹 ℕ b1 : 𝓤) true 0 b
--- : Π (b : 𝔹) → 𝔹-elim (λ (_ : 𝔹) → 𝓤) 𝔹 ℕ b
+-- ↪ λ b → 𝔹-elim (λ p → 𝔹-elim (λ _ → 𝓤) 𝔹 ℕ p) true 0 b
+-- : Π (b : 𝔹) → 𝔹-elim (λ _ → 𝓤) 𝔹 ℕ b
 -- --
 -- λ» :example contrived true
 -- ↪ true : 𝔹
@@ -101,8 +98,8 @@ boolScript = do
 
     define_ "if"
         $$ forall_ "r" (TermBool ~> "r" ~> "r" ~> "r")
-        $$ lams_ ["a", "b", "t", "f"]
-              (Inf $ TermBoolElim (lam_ "_" "a" -:- TermBool ~> sort_ typeSort) "t" "f" "b")
+        $$ lams_ ["r", "b", "t", "f"]
+              (Inf $ TermBoolElim "_" (lift "r") "t" "f" "b")
 
     section_ "Some simple functions on Booleans"
     subsection_ "Negation, not"
@@ -130,12 +127,12 @@ boolScript = do
     -- TODO: change to truth
     section_ "Using dependent elimination"
 
-    let ty = TermBoolElim (lam_ "_" (sort_ typeSort) -:- TermBool ~> sort_ typeSortSort) (Inf TermBool) (Inf TermNat) "b"
+    let ty = TermBoolElim "_" (lift $ sort_ typeSort) (Inf TermBool) (Inf TermNat) "b"
     define_ "contrived"
         $$ pi_ "b" TermBool
-              (TermBoolElim (lam_ "_" (sort_ typeSort) -:- TermBool ~> sort_ typeSortSort) (Inf TermBool) (Inf TermNat) "b")
+              (TermBoolElim "_" (lift $ sort_ typeSort) (Inf TermBool) (Inf TermNat) "b")
         $$ lam_ "b"
-            (Inf $ TermBoolElim (lam_ "b" (Inf ty) -:- TermBool ~> sort_ typeSort) (Inf TermTrue) (Inf TermNatZ)  "b")
+            (Inf $ TermBoolElim "p" (abstract1Sym "b" ty) (Inf TermTrue) (Inf TermNatZ)  "b")
 
     example_ "contrived"
     example_ $ "contrived" @@@ TermTrue

@@ -27,7 +27,7 @@ module Language.PTS.Value (
     pppElim,
 #ifdef LANGUAGE_PTS_HAS_BOOL
     -- * Booleans
-    valueBoolElim,
+    -- valueBoolElim,
 #endif
 #ifdef LANGUAGE_PTS_HAS_NAT
     -- * Natural numbers
@@ -144,7 +144,7 @@ data ValueElim err s a
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
     -- | Bool elimination
-    | ValueBoolElim (ValueIntro err s a) (ValueIntro err s a) (ValueIntro err s a) (ValueElim err s a)
+    | ValueBoolElim IrrSym (Scope IrrSym (ValueIntro err s) a) (ValueIntro err s a) (ValueIntro err s a) (ValueElim err s a)
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
@@ -213,14 +213,14 @@ valueAppBind (ValueApp f x) k = case valueAppBind f k of
     f'                -> ValueErr $ review _Err $ ApplyPanic (ppp0 (() <$ f'))
 
 #if LANGUAGE_PTS_HAS_BOOL
-valueAppBind (ValueBoolElim a t f b) k =
+valueAppBind (ValueBoolElim x a t f b) k =
     case valueAppBind b k of
-        ValueCoerce b' -> ValueCoerce (ValueBoolElim a' t' f' b')
+        ValueCoerce b' -> ValueCoerce (ValueBoolElim x a' t' f' b')
         ValueTrue      -> t'
         ValueFalse     -> f'
         b'             -> error $ "panic! valueAppBind ValueBoolElim\n" ++ prettyShow (void b) ++ "\n" ++ prettyShow (void b')
   where
-    a' = a >>= k
+    a' = a >>>= k
     t' = t >>= k
     f' = f >>= k
 #endif
@@ -262,8 +262,8 @@ instance (PrettyPrec err, AsErr err, Specification s) => Monad (ValueElim err s)
     ValueApp f x >>= k = ValueApp (f >>= k) (valueBind x k)
 
 #if LANGUAGE_PTS_HAS_BOOL
-    ValueBoolElim a t f b >>= k = ValueBoolElim
-        (valueBind a k)
+    ValueBoolElim x a t f b >>= k = ValueBoolElim x
+        (toScope $ valueBind (fromScope a) $ unvar (return . B) (fmap F . k))
         (valueBind t k)
         (valueBind f k)
         (b >>= k)
@@ -332,6 +332,7 @@ valueApp f x = do
     b <- ValueCoerce $ ValueApp (ValueVar True) (return False)
     if b then f else x
 
+{-
 #if LANGUAGE_PTS_HAS_BOOL
 valueBoolElim
     :: (PrettyPrec err, AsErr err, Specification s)
@@ -354,6 +355,7 @@ valueBoolElim a z s n = do
 
 data BE_P = BE_A | BE_T | BE_F | BE_B
 #endif
+-}
 
 #if LANGUAGE_PTS_HAS_NAT
 valueNatElim
@@ -414,11 +416,11 @@ traverseErrValueElim _ (ValueVar a)   = pure (ValueVar a)
 traverseErrValueElim f (ValueApp g x) = ValueApp <$> traverseErrValueElim f g <*> traverseErrValueIntro f x
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
-traverseErrValueElim f (ValueBoolElim a z s n) = ValueBoolElim
-    <$> traverseErrValueIntro f a
-    <*> traverseErrValueIntro f z
-    <*> traverseErrValueIntro f s
-    <*> traverseErrValueElim  f n
+traverseErrValueElim g (ValueBoolElim x p t f n) = ValueBoolElim x
+    <$> (fmap toScope $ traverseErrValueIntro g $ fromScope p)
+    <*> traverseErrValueIntro g t
+    <*> traverseErrValueIntro g f
+    <*> traverseErrValueElim  g n
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
@@ -496,12 +498,13 @@ instance (Show s, Show err) => Show1 (ValueElim err s) where
         showsBinaryWith (liftShowsPrec sp sl) (liftShowsPrec sp sl) "ValueApp" d x y
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
-    liftShowsPrec sp sl d (ValueBoolElim x y z w) = showsQuadWith
+    liftShowsPrec sp sl d (ValueBoolElim x y z w u) = showsQuintWith
+        showsPrec
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
-        "ValueBoolElim" d x y z w
+        "ValueBoolElim" d x y z w u
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
@@ -561,8 +564,8 @@ instance Eq s => Eq1 (ValueElim err s) where
     liftEq eq (ValueApp f x) (ValueApp f' x') = liftEq eq f f' && liftEq eq x x'
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
-    liftEq eq (ValueBoolElim a t f b) (ValueBoolElim a' t' f' b') =
-        liftEq eq a a' &&
+    liftEq eq (ValueBoolElim _ p t f b) (ValueBoolElim _ p' t' f' b') =
+        liftEq eq p p' &&
         liftEq eq t t' &&
         liftEq eq f f' &&
         liftEq eq b b'
@@ -643,9 +646,9 @@ pppElim _ (ValueVar a)  = return a
 pppElim d t@ValueApp {} = uncurry (pppApplication d) (pppPeelApplication t)
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
-pppElim d (ValueBoolElim a t f b) = pppApplication d
+pppElim d (ValueBoolElim x p t f b) = pppApplication d
     (pppText "𝔹-elim")
-    [ pppIntro PrecApp a
+    [ pppScopedIrrSym x (\xDoc -> pppLambda PrecApp [xDoc] $ pppIntro PrecLambda $ instantiate1return xDoc p)  -- TODO
     , pppIntro PrecApp t
     , pppIntro PrecApp f
     , pppElim  PrecApp b
@@ -675,17 +678,6 @@ pppPeelApplication v = (pppElim PrecApp v, [])
 
 instance (Specification s, PrettyPrec err, PrettyPrec a) => PrettyPrec (ValueIntro err s a) where ppp = ppp1
 instance (Specification s, PrettyPrec err, PrettyPrec a) => PrettyPrec (ValueElim err s a)  where ppp = ppp1
-
-instantiate1return :: a -> Scope IrrSym (ValueIntro err s) a -> ValueIntro err s a
-instantiate1return x (Scope s) = fmap k s where
-    k (F y) = y
-    k (B _) = x
-
-unusedScope :: Traversable m => Scope n m a -> Maybe (m a)
-unusedScope (Scope s) = traverse k s where
-    k :: Var n a -> Maybe a
-    k (F y) = Just y
-    k (B _) = Nothing
 
 -------------------------------------------------------------------------------
 -- Extension extra

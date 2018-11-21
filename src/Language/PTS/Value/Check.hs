@@ -27,7 +27,7 @@ valueType_ ctx (ValueApp f x) = case valueType_ ctx f of
     ft              -> ValueErr $ _Err # NotAFunction (ppp0 ft) (ppp0 f) (ppp0 x) []
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
-valueType_ _ctx (ValueBoolElim p _ _ b) = valueApp p (ValueCoerce b)
+valueType_ _ctx (ValueBoolElim _ p _ _ b) = instantiate1 (ValueCoerce b) p
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT

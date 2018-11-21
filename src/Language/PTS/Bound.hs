@@ -12,9 +12,11 @@ module Language.PTS.Bound (
     abstract,
     abstract1Sym,
     instantiate1,
+    instantiate1return,
     bindings,
     transverseScope,
     liftS,
+    unusedScope,
     -- * ScopeH
     ScopeH (..),
     fromScopeH,
@@ -62,3 +64,14 @@ liftH s = ScopeH (fmap (F . return) s)
 
 liftS :: Functor m => m a -> Scope n m a
 liftS s = Scope (fmap F s)
+
+instantiate1return :: Functor f => a -> Scope IrrSym f a -> f a
+instantiate1return x (Scope s) = fmap k s where
+    k (F y) = y
+    k (B _) = x
+
+unusedScope :: Traversable m => Scope n m a -> Maybe (m a)
+unusedScope (Scope s) = traverse k s where
+    k :: Var n a -> Maybe a
+    k (F y) = Just y
+    k (B _) = Nothing
