@@ -38,7 +38,7 @@ import Language.PTS
 -- λ» :define not : 𝔹 → 𝔹 = λ b → if 𝔹 b false true
 -- --
 -- λ» :example not
--- ↪ λ b → 𝔹-elim (λ _ → 𝔹) false true b : 𝔹 → 𝔹
+-- ↪ λ b → 𝔹-elim (λ _ → 𝔹 : 𝓤) false true b : 𝔹 → 𝔹
 -- --
 -- λ» :example not true
 -- ↪ false : 𝔹
@@ -51,7 +51,7 @@ import Language.PTS
 -- λ» :define and : 𝔹 → 𝔹 → 𝔹 = λ x y → if 𝔹 x y false
 -- --
 -- λ» :example and
--- ↪ λ x y → 𝔹-elim (λ _ → 𝔹) y false x : 𝔹 → 𝔹 → 𝔹
+-- ↪ λ x y → 𝔹-elim (λ _ → 𝔹 : 𝓤) y false x : 𝔹 → 𝔹 → 𝔹
 -- --
 -- λ» :example and true true
 -- ↪ true : 𝔹
@@ -77,8 +77,10 @@ import Language.PTS
 --                b
 -- --
 -- λ» :example contrived
--- ↪ λ b → 𝔹-elim (λ b → 𝔹-elim (λ _ → 𝓤) 𝔹 ℕ b) true 0 b
--- : Π (b : 𝔹) → 𝔹-elim (λ _ → 𝓤) 𝔹 ℕ b
+-- ↪ λ b →
+--       𝔹-elim
+--           (λ b1 → 𝔹-elim (λ _ → 𝓤 : 𝓤) 𝔹 ℕ b1 : 𝓤) true 0 b
+-- : Π (b : 𝔹) → 𝔹-elim (λ (_ : 𝔹) → 𝓤) 𝔹 ℕ b
 -- --
 -- λ» :example contrived true
 -- ↪ true : 𝔹
