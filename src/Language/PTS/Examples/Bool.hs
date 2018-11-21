@@ -1,20 +1,115 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Language.PTS.Examples.Bool (
+    churchBooleansScript,
 #if defined(LANGUAGE_PTS_HAS_BOOL) && defined(LANGUAGE_PTS_HAS_NAT)
-    boolScript,
+    booleansScript,
 #endif
     ) where
+
+import Language.PTS
 
 #if defined(LANGUAGE_PTS_HAS_BOOL) && defined(LANGUAGE_PTS_HAS_NAT)
 import Control.Monad.Trans.Class (lift)
 
-import Language.PTS
 import Language.PTS.Bound
+#endif
+
+-------------------------------------------------------------------------------
+-- Church Booleans
+-------------------------------------------------------------------------------
+
+-- | 'SystemF' is powerful enough to define Church Booleans.
+--
+-- >>> runLoud $ spec_ SysFStar >> churchBooleansScript
+-- -- 1. Definitions
+-- -----------------
+-- --
+-- λ» :define Bool : ⋆ = ∀ r → r → r → r
+-- λ» :define True : Bool = λ r t f → t
+-- λ» :define False : Bool = λ r t f → f
+-- --
+-- -- 2. Functions
+-- ---------------
+-- --
+-- -- Bool values are itself an if statement
+-- λ» :define not : Bool → Bool = λ x → x Bool False True
+-- λ» :define and : Bool → Bool → Bool = λ x y → x Bool y False
+-- --
+-- -- 3. Examples
+-- --------------
+-- --
+-- -- One have to look carefully to distinguish the results :)
+-- λ» :example and True True
+-- ↪ λ r t f → t : ∀ r → r → r → r
+-- --
+-- λ» :example and True False
+-- ↪ λ r t f → f : ∀ r → r → r → r
+-- --
+-- λ» :example and False True
+-- ↪ λ r t f → f : ∀ r → r → r → r
+-- --
+-- -- 4. Extras
+-- ------------
+-- --
+-- -- Note the usage of impredicativity.
+-- λ» :example not
+-- ↪ λ x → x (∀ r → r → r → r) (λ r t f → f) (λ r t f → t)
+-- : (∀ r → r → r → r) → ∀ r → r → r → r
+-- --
+-- λ» :example and
+-- ↪ λ x y → x (∀ r → r → r → r) y (λ r t f → f)
+-- : (∀ r → r → r → r) → (∀ r → r → r → r) → ∀ r → r → r → r
+-- ∎
+--
+churchBooleansScript :: Script s m => m ()
+churchBooleansScript = do
+    section_ "Definitions"
+
+    define_ "Bool"
+        $$ sort_ typeSort
+        $$ forall_ "r" ("r" ~> "r" ~> "r")
+
+    define_ "True"
+        $$ "Bool"
+        $$ lams_ ["r", "t", "f"] "t"
+
+    define_ "False"
+        $$ "Bool"
+        $$ lams_ ["r", "t", "f"] "f"
+
+    section_ "Functions"
+
+    comment_ "Bool values are itself an if statement"
+    define_ "not"
+        $$ "Bool" ~> "Bool"
+        $$ lam_ "x" ("x" @@ "Bool" @@ "False" @@ "True")
+
+    define_ "and"
+        $$ "Bool" ~> "Bool" ~> "Bool"
+        $$ lams_ ["x", "y"] ("x" @@ "Bool" @@ "y" @@ "False")
+
+    section_ "Examples"
+
+    comment_ "One have to look carefully to distinguish the results :)"
+    example_ $ "and" @@ "True"  @@ "True"
+    example_ $ "and" @@ "True"  @@ "False"
+    example_ $ "and" @@ "False" @@ "True"
+
+    section_ "Extras"
+    comment_ "Note the usage of impredicativity."
+
+    example_ "not"
+    example_ "and"
+
+#if defined(LANGUAGE_PTS_HAS_BOOL) && defined(LANGUAGE_PTS_HAS_NAT)
+-------------------------------------------------------------------------------
+-- Built-in Booleans
+-------------------------------------------------------------------------------
 
 -- | Examples of built-in Booleans.
 -- We need dependent types to be able to use dependent @𝔹-elim@.
 --
--- >>> runLoud $ spec_ (MartinLof 0) >> boolScript
+-- >>> runLoud $ spec_ (MartinLof 0) >> booleansScript
 -- -- 1. Constants
 -- ---------------
 -- --
@@ -86,8 +181,8 @@ import Language.PTS.Bound
 -- ↪ 0 : ℕ
 -- ∎
 --
-boolScript :: Script s m => m ()
-boolScript = do
+booleansScript :: Script s m => m ()
+booleansScript = do
     section_ "Constants"
 
     example_ TermBool
@@ -137,9 +232,9 @@ boolScript = do
     example_ "contrived"
     example_ $ "contrived" @@@ TermTrue
     example_ $ "contrived" @@@ TermFalse
+#endif
 
 -- $setup
--- >>> :set -XOverloadedStrings -XTypeApplications
+-- >>> :seti -XOverloadedStrings -XTypeApplications
 -- >>> import Language.PTS.Pretty
 -- >>> import Language.PTS.Systems
-#endif

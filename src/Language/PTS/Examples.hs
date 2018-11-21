@@ -14,8 +14,6 @@ module Language.PTS.Examples (
     hindleyMilnerIdentity,
     martinLofIdentity,
     lambdaStarIdentity,
-    -- * Church booleans
-    churchBooleans,
     -- * Contexts
     emptyCtx,
     basicCtx,
@@ -216,60 +214,6 @@ martinLofIdentity = Ann
 
 lambdaStarIdentity :: Term LambdaStar
 lambdaStarIdentity = polymorphicIdentity
-
--------------------------------------------------------------------------------
--- Booleans
--------------------------------------------------------------------------------
-
--- | 'SystemF' is powerful enough to define Church Booleans.
---
--- >>> runLoud $ spec_ SysFStar >> churchBooleans
--- λ» :define Bool : ⋆ = ∀ r → r → r → r
--- λ» :define True : Bool = λ r t f → t
--- λ» :define False : Bool = λ r t f → f
--- --
--- -- Bool values are itself an if statement
--- λ» :define not : Bool → Bool = λ x → x Bool False True
--- λ» :define and : Bool → Bool → Bool = λ x y → x Bool y False
--- --
--- -- One have to look carefully to distinguish the results :)
--- λ» :example and True True
--- ↪ λ r t f → t : ∀ r → r → r → r
--- --
--- λ» :example and True False
--- ↪ λ r t f → f : ∀ r → r → r → r
--- --
--- λ» :example and False True
--- ↪ λ r t f → f : ∀ r → r → r → r
--- ∎
---
-churchBooleans :: Script s m => m ()
-churchBooleans = do
-    define_ "Bool"
-        $$ sort_ typeSort
-        $$ forall_ "r" ("r" ~> "r" ~> "r")
-
-    define_ "True"
-        $$ "Bool"
-        $$ lams_ ["r", "t", "f"] "t"
-
-    define_ "False"
-        $$ "Bool"
-        $$ lams_ ["r", "t", "f"] "f"
-
-    comment_ "Bool values are itself an if statement"
-    define_ "not"
-        $$ "Bool" ~> "Bool"
-        $$ lam_ "x" ("x" @@ "Bool" @@ "False" @@ "True")
-
-    define_ "and"
-        $$ "Bool" ~> "Bool" ~> "Bool"
-        $$ lams_ ["x", "y"] ("x" @@ "Bool" @@ "y" @@ "False")
-
-    comment_ "One have to look carefully to distinguish the results :)"
-    example_ $ "and" @@ "True"  @@ "True"
-    example_ $ "and" @@ "True"  @@ "False"
-    example_ $ "and" @@ "False" @@ "True"
 
 -------------------------------------------------------------------------------
 -- Basic types
