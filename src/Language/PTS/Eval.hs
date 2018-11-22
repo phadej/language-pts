@@ -180,5 +180,6 @@ eta' n t s = ValueLam n t (toScope s)
 
 -- $setup
 -- >>> import Language.PTS.Systems
+-- >>> import Language.PTS.Smart
 -- >>> let pp  = prettyPut :: TermInf LambdaStar Sym -> IO ()
 -- >>> let pp' = prettyPut :: Value LambdaStar -> IO ()

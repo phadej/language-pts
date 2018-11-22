@@ -9,7 +9,6 @@ module Language.PTS.Examples.Booleans (
     booleansPrimScript,
 #endif
 #endif
-
     ) where
 
 import Language.PTS
@@ -426,6 +425,7 @@ booleansPrimScript = do
 
 #endif
 #endif
+
 -- $setup
 -- >>> :seti -XOverloadedStrings -XTypeApplications
 -- >>> import Language.PTS.Pretty

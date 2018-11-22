@@ -405,7 +405,7 @@ valueNatElim
 valueNatElim x p z s = go where
     go (ValueCoerce n) = ValueCoerce (ValueNatElim x p z s n)
     go ValueNatZ       = z
-    go (ValueNatS n)   = valueApp (valueApp s n) (go n)
+    go (ValueNatS n)   = s `valueApp` n `valueApp` go n
     go n'              = ValueErr $ review _Err $ ApplyPanic $ ppp0 (void n')
 
 #if LANGUAGE_PTS_HAS_NAT_PRIM
@@ -414,6 +414,16 @@ valuePlus
     => ValueIntro err s a
     -> ValueIntro err s a
     -> ValueIntro err s a
+
+valuePlus ValueNatZ     m             = m
+valuePlus (ValueNatS n) m             = ValueNatS (valuePlus n m)
+valuePlus n             ValueNatZ     = n
+valuePlus n             (ValueNatS m) = ValueNatS (valuePlus n m)
+
+valuePlus (ValueCoerce n) (ValueCoerce m) = ValueCoerce (ValuePlus n m)
+
+valuePlus (ValueErr err) _ = ValueErr err
+valuePlus _ (ValueErr err) = ValueErr err
 valuePlus x y = ValueErr $ review _Err $ ApplyPanic $ ppp0 (void x, void y)
 #endif
 #endif

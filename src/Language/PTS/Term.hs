@@ -373,7 +373,7 @@ pppInf d (TermAnd x y) = pppApplication d
 pppInf _ TermNat      = pppChar 'ℕ'
 pppInf _ TermNatZ     = pppChar '0'
 pppInf d (TermNatS n)
-    | Just m <- termChkToNatural n = pppIntegral m
+    | Just m <- termChkToNatural n = pppIntegral $ succ m
     | otherwise                    = pppApplication d (pppChar 'S') [pppChk PrecApp n]
 pppInf d (TermNatElim x p z s n) = pppApplication d
         (pppText "ℕ-elim")

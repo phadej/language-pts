@@ -119,9 +119,10 @@ library
     Language.PTS.Examples
     Language.PTS.Examples.Booleans
     Language.PTS.Examples.Contexts
-    Language.PTS.Examples.Identity
     Language.PTS.Examples.Errors
     Language.PTS.Examples.Hurkens
+    Language.PTS.Examples.Identity
+    Language.PTS.Examples.Naturals
 
     Text.Show.Extras
 
