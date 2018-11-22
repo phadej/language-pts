@@ -28,6 +28,10 @@ import Language.PTS.Examples.Errors
 import Language.PTS.Examples.Contexts
 import Language.PTS.Examples.Hurkens
 
+#ifdef LANGUAGE_PTS_HAS_NAT
+import Language.PTS.Bound
+#endif
+
 -------------------------------------------------------------------------------
 -- Type-checking nat
 -------------------------------------------------------------------------------
@@ -107,7 +111,8 @@ natCtx' =
     [ "Nat"  .= TermNat
     , "zero" .= TermNatZ
     , "succ" .= lam_ "n" (fromTermInf $ TermNatS "n") -:- "Nat" ~> "Nat"
-    , "natElim" .= lams_ ["a", "z", "s", "n"] (fromTermInf $ TermNatElim "a" "z" "s" "n")
+    , "natElim" .= lams_ ["a", "z", "s", "n"]
+        (fromTermInf $ TermNatElim "x" (abstract1HSym "x" $ "a" @@ "x") "z" "s" "n")
         -:- natElimType'
     -- digits
     , "0"   .= "zero"

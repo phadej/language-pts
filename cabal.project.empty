@@ -1,0 +1,4 @@
+packages: .
+
+package language-pts
+  ghc-options: -Werror

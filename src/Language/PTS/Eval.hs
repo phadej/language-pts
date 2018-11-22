@@ -30,13 +30,15 @@ module Language.PTS.Eval (
     -- $eta
     ) where
 
-import Control.Monad (void)
+#ifdef LANGUAGE_PTS_HAS_NAT
+import Language.PTS.Smart
+#endif
+
 import Control.Lens (review)
 
 import Language.PTS.Bound
 import Language.PTS.Error
 import Language.PTS.Pretty
-import Language.PTS.Smart
 import Language.PTS.Specification
 import Language.PTS.Sym
 import Language.PTS.Term
@@ -79,39 +81,44 @@ evalInf ctx (Pi n a b) = ValuePi n a' (toScope $ evalInf (addContext a' ctx) $ f
 evalInf _ctx TermBool                 = ValueBool
 evalInf _ctx TermTrue                 = ValueTrue
 evalInf _ctx TermFalse                = ValueFalse
-evalInf  ctx (TermBoolElim x p t f b) = case evalChk ctx b ValueBool of
-    ValueTrue      -> t'
-    ValueFalse     -> f'
-    ValueErr err   -> ValueErr err
-    ValueCoerce b' -> ValueCoerce $ ValueBoolElim x p' t' f' b'
-    b'             -> ValueErr $ review _Err $ ApplyPanic $ ppp0 (void f', void b')
+evalInf  ctx (TermBoolElim x p t f b) = valueBoolElim x
+    p' t' f' b'
   where
     p' = Scope $ evalInf (addContext ValueBool ctx) $ fromScopeH p
     t' = evalChk ctx t $ instantiate1 ValueTrue p'
     f' = evalChk ctx f $ instantiate1 ValueFalse p'
+    b' = evalChk ctx b ValueBool
 
 #ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
-evalInf  ctx (TermAnd x y) = do
-    xy <- ValueCoerce (ValueAnd (ValueVar True) (ValueVar False))
-    if xy then x' else y'
-  where
-    x' = evalChk ctx x ValueBool
-    y' = evalChk ctx y ValueBool
+evalInf  ctx (TermAnd x y) = valueAnd
+    (evalChk ctx x ValueBool)
+    (evalChk ctx y ValueBool)
 #endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
-evalInf _ctx TermNat               = ValueNat
-evalInf _ctx TermNatZ              = ValueNatZ
-evalInf  ctx (TermNatS n)          = ValueNatS (evalChk ctx n ValueNat)
-evalInf  ctx (TermNatElim a z s n) = valueNatElim a'
-    (evalChk ctx z $ valueApp a' ValueNatZ)
-    (evalChk ctx s $ do
-        _ <- pi_ "l" ValueNat ("a" @@ "l" ~> "a" @@ (ValueNatS "l"))
-        a')
-    (evalChk ctx n $ ValueNat)
+evalInf _ctx TermNat                = ValueNat
+evalInf _ctx TermNatZ               = ValueNatZ
+evalInf  ctx (TermNatS n)           = ValueNatS (evalChk ctx n ValueNat)
+evalInf  ctx (TermNatElim x p z s n) = valueNatElim x
+    p' z' s' n'
   where
-    a' = evalChk ctx a (ValueNat ~> sort_ typeSort)
+    p' = Scope $ evalInf (addContext ValueNat ctx) $ fromScopeH p
+    z' = evalChk ctx z $ instantiate1 ValueNatZ p'
+    s' = evalChk ctx s $ ValuePi "l" ValueNat $ toScope $
+        instantiate1 (pure (B "l")) (fmap F p') ~>
+        instantiate1 (ValueNatS (pure (B "l"))) (fmap F p')
+    n' = evalChk ctx n ValueNat
+
+#ifdef LANGUAGE_PTS_HAS_NAT_PRIM
+evalInf ctx (TermPlus x y) = valuePlus
+    (evalChk ctx x ValueNat)
+    (evalChk ctx y ValueNat)
+
+evalInf ctx (TermTimes x y) = valueTimes
+    (evalChk ctx x ValueNat)
+    (evalChk ctx y ValueNat)
+#endif
 #endif
 
 evalChk
@@ -177,5 +184,6 @@ eta' n t s = ValueLam n t (toScope s)
 
 -- $setup
 -- >>> import Language.PTS.Systems
+-- >>> import Language.PTS.Smart
 -- >>> let pp  = prettyPut :: TermInf LambdaStar Sym -> IO ()
 -- >>> let pp' = prettyPut :: Value LambdaStar -> IO ()

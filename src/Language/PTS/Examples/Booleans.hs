@@ -9,12 +9,11 @@ module Language.PTS.Examples.Booleans (
     booleansPrimScript,
 #endif
 #endif
-
     ) where
 
 import Language.PTS
 
-#if defined(LANGUAGE_PTS_HAS_BOOL) && defined(LANGUAGE_PTS_HAS_NAT)
+#if defined(LANGUAGE_PTS_HAS_BOOL) && (defined(LANGUAGE_PTS_HAS_NAT) || defined(LANGUAGE_PTS_HAS_BOOL_PRIM))
 import Language.PTS.Bound
 #endif
 
@@ -426,6 +425,7 @@ booleansPrimScript = do
 
 #endif
 #endif
+
 -- $setup
 -- >>> :seti -XOverloadedStrings -XTypeApplications
 -- >>> import Language.PTS.Pretty
