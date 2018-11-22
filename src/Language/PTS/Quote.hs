@@ -94,7 +94,8 @@ quoteElim (ValueNatElim x p s z n) = TermNatElim x
     (Inf $ quoteElim n)
 
 #ifdef LANGUAGE_PTS_HAS_NAT_PRIM
-quoteElim (ValuePlus x y) = TermPlus (Inf $ quoteElim x) (Inf $ quoteElim y)
+quoteElim (ValuePlus x y)  = TermPlus  (Inf $ quoteElim x) (Inf $ quoteElim y)
+quoteElim (ValueTimes x y) = TermTimes (Inf $ quoteElim x) (Inf $ quoteElim y)
 #endif
 #endif
 

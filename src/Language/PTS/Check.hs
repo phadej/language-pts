@@ -124,7 +124,7 @@ rtype_ ts ctx term = case term of
         rcheck_ ts' ctx n ValueNat
 
         let as = typeSort -- sort of Natural numbers
-    
+
         -- check sorts
         let p'   = fromScopeH p
         let ctx' = addContext ValueNat ctx
@@ -146,6 +146,11 @@ rtype_ ts ctx term = case term of
 
 #ifdef LANGUAGE_PTS_HAS_NAT_PRIM
     TermPlus x y -> do
+        rcheck_ ts' ctx x ValueNat
+        rcheck_ ts' ctx y ValueNat
+        return ValueNat
+
+    TermTimes x y -> do
         rcheck_ ts' ctx x ValueNat
         rcheck_ ts' ctx y ValueNat
         return ValueNat

@@ -34,6 +34,7 @@ module Language.PTS.Value (
     valueNatElim,
 #if LANGUAGE_PTS_HAS_NAT_PRIM
     valuePlus,
+    valueTimes,
 #endif
 #endif
     -- * Pretty-printing
@@ -161,6 +162,9 @@ data ValueElim err s a
 #ifdef LANGUAGE_PTS_HAS_NAT_PRIM
     -- | Natural number addition
     | ValuePlus (ValueElim err s a) (ValueElim err s a)
+
+    -- | Natural number multiplication
+    | ValueTimes (ValueElim err s a) (ValueElim err s a)
 #endif
 #endif
 
@@ -236,6 +240,8 @@ valueAppBind (ValueNatElim x a z s n) k =
 #if LANGUAGE_PTS_HAS_NAT_PRIM
 valueAppBind (ValuePlus x y) k =
     valuePlus (valueAppBind x k) (valueAppBind y k)
+valueAppBind (ValueTimes x y) k =
+    valueTimes (valueAppBind x k) (valueAppBind y k)
 #endif
 #endif
 
@@ -277,7 +283,8 @@ instance (PrettyPrec err, AsErr err, Specification s) => Monad (ValueElim err s)
         (n >>= k)
 
 #if LANGUAGE_PTS_HAS_NAT_PRIM
-    ValuePlus x y >>= k = ValuePlus (x >>= k) (y >>= k)
+    ValuePlus  x y >>= k = ValuePlus  (x >>= k) (y >>= k)
+    ValueTimes x y >>= k = ValueTimes (x >>= k) (y >>= k)
 #endif
 #endif
 
@@ -423,6 +430,23 @@ valuePlus (ValueCoerce n) (ValueCoerce m) = ValueCoerce (ValuePlus n m)
 valuePlus (ValueErr err) _ = ValueErr err
 valuePlus _ (ValueErr err) = ValueErr err
 valuePlus x y = ValueErr $ review _Err $ ApplyPanic $ ppp0 (void x, void y)
+
+valueTimes
+    :: (Specification s, AsErr err, PrettyPrec err)
+    => ValueIntro err s a
+    -> ValueIntro err s a
+    -> ValueIntro err s a
+
+valueTimes ValueNatZ     _             = ValueNatZ
+valueTimes (ValueNatS n) m             = valuePlus m (valueTimes n m)
+valueTimes _             ValueNatZ     = ValueNatZ
+valueTimes n             (ValueNatS m) = valuePlus n (valueTimes n m)
+
+valueTimes (ValueCoerce n) (ValueCoerce m) = ValueCoerce (ValueTimes n m)
+
+valueTimes (ValueErr err) _ = ValueErr err
+valueTimes _ (ValueErr err) = ValueErr err
+valueTimes x y = ValueErr $ review _Err $ ApplyPanic $ ppp0 (void x, void y)
 #endif
 #endif
 
@@ -484,6 +508,10 @@ traverseErrValueElim f (ValueNatElim x a z s n) = ValueNatElim x
 
 #ifdef LANGUAGE_PTS_HAS_NAT_PRIM
 traverseErrValueElim g (ValuePlus x y) = ValuePlus
+    <$> traverseErrValueElim g x
+    <*> traverseErrValueElim g y
+
+traverseErrValueElim g (ValueTimes x y) = ValueTimes
     <$> traverseErrValueElim g x
     <*> traverseErrValueElim g y
 #endif
@@ -582,6 +610,11 @@ instance (Show s, Show err) => Show1 (ValueElim err s) where
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
         "ValuePlus" d x y
+
+    liftShowsPrec sp sl d (ValueTimes x y) = showsBinaryWith
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "ValueTimes" d x y
 #endif
 #endif
 
@@ -651,6 +684,10 @@ instance Eq s => Eq1 (ValueElim err s) where
 
 #ifdef LANGUAGE_PTS_HAS_NAT_PRIM
     liftEq eq (ValuePlus x y) (ValuePlus x' y') =
+        liftEq eq x x' &&
+        liftEq eq y y'
+
+    liftEq eq (ValueTimes x y) (ValueTimes x' y') =
         liftEq eq x x' &&
         liftEq eq y y'
 #endif
@@ -751,6 +788,12 @@ pppElim d (ValueNatElim x a z s n) = pppApplication d
 #ifdef LANGUAGE_PTS_HAS_NAT_PRIM
 pppElim d (ValuePlus x y) = pppApplication d
     (pppText "ℕ-plus")
+    [ pppElim PrecApp x
+    , pppElim PrecApp y
+    ]
+
+pppElim d (ValueTimes x y) = pppApplication d
+    (pppText "ℕ-times")
     [ pppElim PrecApp x
     , pppElim PrecApp y
     ]

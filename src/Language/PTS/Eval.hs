@@ -114,6 +114,10 @@ evalInf  ctx (TermNatElim x p z s n) = valueNatElim x
 evalInf ctx (TermPlus x y) = valuePlus
     (evalChk ctx x ValueNat)
     (evalChk ctx y ValueNat)
+
+evalInf ctx (TermTimes x y) = valueTimes
+    (evalChk ctx x ValueNat)
+    (evalChk ctx y ValueNat)
 #endif
 #endif
 

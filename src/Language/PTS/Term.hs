@@ -220,6 +220,18 @@ data TermInf s a
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{N}\mathsf{-plus}\,x\,y} \Rightarrow \color{darkred}{\mathbb{N}} }
     -- \]
     | TermPlus (TermChk s a) (TermChk s a)
+
+    -- | Natural number addition, @times@.
+    --
+    -- \[ \frac
+      -- {\array{
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}x \Leftarrow \color{darkred}{\mathbb{N}}
+      --  \qquad
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}y \Leftarrow \color{darkred}{\mathbb{N}}
+      -- }}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{N}\mathsf{-times}\,x\,y} \Rightarrow \color{darkred}{\mathbb{N}} }
+    -- \]
+    | TermTimes (TermChk s a) (TermChk s a)
 #endif
 #endif
 
@@ -326,6 +338,11 @@ instance Show s => Show1 (TermInf s) where
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
         "TermPlus" d x y
+
+    liftShowsPrec sp sl d (TermTimes x y) = showsBinaryWith
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "TermTimes" d x y
 #endif
 #endif
 
@@ -386,6 +403,11 @@ pppInf d (TermNatElim x p z s n) = pppApplication d
 #ifdef LANGUAGE_PTS_HAS_NAT_PRIM
 pppInf d (TermPlus x y) = pppApplication d
     (pppText "ℕ-plus")
+    [ pppChk PrecApp x
+    , pppChk PrecApp y
+    ]
+pppInf d (TermTimes x y) = pppApplication d
+    (pppText "ℕ-times")
     [ pppChk PrecApp x
     , pppChk PrecApp y
     ]
@@ -479,6 +501,7 @@ instance Monad (TermInf s) where
 
 #ifdef LANGUAGE_PTS_HAS_NAT_PRIM
     TermPlus x y >>= k = TermPlus (x >>== k) (y >>== k)
+    TermTimes x y >>= k = TermTimes (x >>== k) (y >>== k)
 #endif
 #endif
 

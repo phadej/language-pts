@@ -123,13 +123,79 @@ import Language.PTS.Bound
 --                 : ℕ → ℕ → ℕ → ℕ
 -- ↪ λ n m p → S (S (S (ℕ-plus n (ℕ-plus m p))))
 -- : ℕ → ℕ → ℕ → ℕ
+-- --
+-- -- 4. With multiplication
+-- -------------------------
+-- --
+-- -- 4.1. Using elimination
+-- --
+-- λ» :define times
+-- : ℕ → ℕ → ℕ = λ x y → nat-fold ℕ x (plus y) zero
+-- --
+-- λ» :example times two three
+-- ↪ 6 : ℕ
+-- --
+-- -- Because we scrutinise the first argument, following expressions reduce (too well?):
+-- λ» :example λ n → times two n : ℕ → ℕ
+-- ↪ λ n → ℕ-elim (λ _ → ℕ)
+--                (ℕ-elim (λ _ → ℕ) 0 (λ l n₁ → S n₁) n)
+--                (λ l n₁ → S n₁)
+--                n
+-- : ℕ → ℕ
+-- --
+-- λ» :example λ n → times zero n : ℕ → ℕ
+-- ↪ λ n → 0 : ℕ → ℕ
+-- --
+-- -- ... but these doesn't:
+-- λ» :example λ n → times n two : ℕ → ℕ
+-- ↪ λ n → ℕ-elim (λ _ → ℕ) 0 (λ l y → S (S y)) n : ℕ → ℕ
+-- --
+-- λ» :example λ n → times n three : ℕ → ℕ
+-- ↪ λ n → ℕ-elim (λ _ → ℕ) 0 (λ l y → S (S (S y))) n : ℕ → ℕ
+-- --
+-- -- 4.2. Built-in primitive
+-- --
+-- λ» :define times# : ℕ → ℕ → ℕ = λ x y → ℕ-times x y
+-- --
+-- λ» :example times# two three
+-- ↪ 6 : ℕ
+-- --
+-- -- With primitive times we get more aggressive reduction behaviour
+-- λ» :example λ n → times# three n : ℕ → ℕ
+-- ↪ λ n → ℕ-plus n (ℕ-plus n n) : ℕ → ℕ
+-- --
+-- λ» :example λ n → times# zero n : ℕ → ℕ
+-- ↪ λ n → 0 : ℕ → ℕ
+-- --
+-- λ» :example λ n → times# n three : ℕ → ℕ
+-- ↪ λ n → ℕ-plus n (ℕ-plus n n) : ℕ → ℕ
+-- --
+-- λ» :example λ n → times# n zero : ℕ → ℕ
+-- ↪ λ n → 0 : ℕ → ℕ
+-- --
+-- -- A bit more envolved example:
+-- λ» :example λ n → times# (plus# n two) two : ℕ → ℕ
+-- ↪ λ n → S (S (S (S (ℕ-plus n n)))) : ℕ → ℕ
+-- --
+-- -- Lastly: a complex expression with plus# and times#:
+-- -- (1 + n) * 1 + 0 + (1 +  m * 2 + m * p)
+-- -- Note how the expression is unrolled as much as possible:
+-- λ» :example λ n m p →
+--                 plus# (plus# (times# (plus# one n) one)
+--                              zero)
+--                       (plus# (plus# one (times# m two))
+--                              (times# m p))
+--                 : ℕ → ℕ → ℕ → ℕ
+-- ↪ λ n m p → S (S (ℕ-plus n (ℕ-plus (ℕ-plus m m)
+--                                    (ℕ-times m p))))
+-- : ℕ → ℕ → ℕ → ℕ
 -- ∎
 --
 naturalsPrimScript :: Script s m => m ()
 naturalsPrimScript = do
     section_ "Constants"
 
-    define_ "succ" 
+    define_ "succ"
         $$ TermNat ~> TermNat
         $$ lam_ "n" (Inf $ TermNatS "n")
 
@@ -206,6 +272,52 @@ naturalsPrimScript = do
 
     example_ $ lams_ ["n", "m", "p"]
         (Inf $ ("n" .+ "one") .+ "zero" .+ ("m" .+ "two" .+ "p"))
+        -:- TermNat ~> TermNat ~> TermNat ~> TermNat
+
+    section_ "With multiplication"
+
+    subsection_ "Using elimination"
+
+    define_ "times"
+        $$ TermNat ~> TermNat ~> TermNat
+        $$ lams_ ["x", "y"] ("nat-fold" @@@ TermNat @@ "x" @@ ("plus" @@ "y") @@ "zero")
+
+    example_ $ "times" @@ "two" @@ "three"
+
+    comment_ "Because we scrutinise the first argument, following expressions reduce (too well?):"
+    example_ $ lam_ "n" ("times" @@ "two" @@ "n")  -:- TermNat ~> TermNat
+    example_ $ lam_ "n" ("times" @@ "zero" @@ "n") -:- TermNat ~> TermNat
+
+    comment_ "... but these doesn't:"
+    example_ $ lam_ "n" ("times" @@ "n" @@ "two")   -:- TermNat ~> TermNat
+    example_ $ lam_ "n" ("times" @@ "n" @@ "three") -:- TermNat ~> TermNat
+
+    subsection_ "Built-in primitive"
+
+    define_ "times#"
+        $$ TermNat ~> TermNat ~> TermNat
+        $$ lams_ ["x", "y"] (Inf (TermTimes "x" "y"))
+
+    example_ $ "times#" @@ "two" @@ "three"
+
+    comment_ "With primitive times we get more aggressive reduction behaviour"
+
+    example_ $ lam_ "n" ("times#" @@ "three" @@ "n")  -:- TermNat ~> TermNat
+    example_ $ lam_ "n" ("times#" @@ "zero" @@ "n")   -:- TermNat ~> TermNat
+    example_ $ lam_ "n" ("times#" @@ "n" @@ "three")  -:- TermNat ~> TermNat
+    example_ $ lam_ "n" ("times#" @@ "n" @@ "zero" )  -:- TermNat ~> TermNat
+
+    comment_ "A bit more envolved example:"
+    example_ $ lam_ "n" ("times#" @@ ("plus#" @@ "n" @@ "two") @@ "two") -:- TermNat ~> TermNat
+
+    comment_ "Lastly: a complex expression with plus# and times#:"
+    let (.*) :: TermInf s Sym -> TermInf s Sym -> TermInf s Sym
+        x .* y = "times#" @@ Inf x @@ Inf y
+
+    comment_ "(1 + n) * 1 + 0 + (1 +  m * 2 + m * p)"
+    comment_ "Note how the expression is unrolled as much as possible:"
+    example_ $ lams_ ["n", "m", "p"]
+        (Inf $ (("one" .+ "n") .* "one") .+ "zero" .+ ("one" .+ ("m" .* "two") .+ ("m" .* "p")))
         -:- TermNat ~> TermNat ~> TermNat ~> TermNat
 #endif
 #endif

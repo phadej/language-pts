@@ -10,6 +10,9 @@ build-all : build
 test : build doctest
 	cabal new-test
 
+ghcid :
+	ghcid -c 'cabal new-repl'
+
 haddock : 
 	cabal new-haddock --with-compiler=ghc-8.4.4 --haddock-hyperlink-source
 
