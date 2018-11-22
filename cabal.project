@@ -1,4 +1,5 @@
 packages: .
+tests: True
 
 constraints: language-pts +nat +nat-prim
 constraints: language-pts +bool +bool-prim

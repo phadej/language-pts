@@ -216,11 +216,8 @@ valueAppBind
     -> (a -> ValueIntro err s b)
     -> ValueIntro err s b
 valueAppBind (ValueVar a) k = k a
-valueAppBind (ValueApp f x) k = case valueAppBind f k of
-    ValueCoerce f'    -> ValueCoerce (ValueApp f' (x >>= k))
-    ValueLam _n _t f' -> instantiate1 (x >>= k) f'
-    ValueErr err      -> ValueErr err
-    f'                -> ValueErr $ review _Err $ ApplyPanic $ ppp0 $ void f'
+valueAppBind (ValueApp f x) k =
+    valueApp (valueAppBind f k) (x >>= k)
 
 #if LANGUAGE_PTS_HAS_BOOL
 valueAppBind (ValueBoolElim x p t f b) k =
@@ -339,9 +336,10 @@ valueApp
     => ValueIntro err s a  -- ^ f : a -> b
     -> ValueIntro err s a  -- ^ x : a
     -> ValueIntro err s a  -- ^ _ : b
-valueApp f x = do
-    b <- ValueCoerce $ ValueApp (ValueVar True) (return False)
-    if b then f else x
+valueApp (ValueCoerce f)    x = ValueCoerce (ValueApp f x)
+valueApp (ValueLam _n _t f) x = instantiate1 x f
+valueApp (ValueErr err)     _ = ValueErr err
+valueApp f'                 _ = ValueErr $ review _Err $ ApplyPanic $ ppp0 $ void f'
 
 -------------------------------------------------------------------------------
 -- Booleans
