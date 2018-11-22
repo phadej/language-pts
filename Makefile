@@ -1,6 +1,12 @@
 build :
 	cabal new-build
 
+build-all : build
+	cabal new-build --project-file=cabal.project.empty --enable-tests all --builddir=dist-newstyle-nat       --constraint='language-pts +nat -nat-prim -bool -bool-prim'
+	cabal new-build --project-file=cabal.project.empty --enable-tests all --builddir=dist-newstyle-bool      --constraint='language-pts +nat +nat-prim -bool -bool-prim'
+	cabal new-build --project-file=cabal.project.empty --enable-tests all --builddir=dist-newstyle-nat-prim  --constraint='language-pts -nat -nat-prim +bool -bool-prim'
+	cabal new-build --project-file=cabal.project.empty --enable-tests all --builddir=dist-newstyle-bool-prim --constraint='language-pts -nat -nat-prim +bool +bool-prim'
+
 haddock : 
 	cabal new-haddock --with-compiler=ghc-8.4.4 --haddock-hyperlink-source
 

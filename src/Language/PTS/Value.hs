@@ -22,17 +22,23 @@ module Language.PTS.Value (
     errorlessValueIntro',
     errorlessValueElim,
     errorlessValueElim',
+#if LANGUAGE_PTS_HAS_BOOL
+    -- * Booleans
+    valueBoolElim,
+#if LANGUAGE_PTS_HAS_BOOL_PRIM
+    valueAnd,
+#endif
+#endif
+#if LANGUAGE_PTS_HAS_NAT
+    -- * Natural numbers
+    valueNatElim,
+#if LANGUAGE_PTS_HAS_NAT_PRIM
+    valuePlus,
+#endif
+#endif
     -- * Pretty-printing
     pppIntro,
     pppElim,
-#ifdef LANGUAGE_PTS_HAS_BOOL
-    -- * Booleans
-    -- valueBoolElim,
-#endif
-#ifdef LANGUAGE_PTS_HAS_NAT
-    -- * Natural numbers
-    valueNatElim,
-#endif
     ) where
 
 import Control.Lens          (review)
@@ -142,7 +148,7 @@ data ValueElim err s a
     -- | Boolean elimination
     | ValueBoolElim IrrSym (Scope IrrSym (ValueIntro err s) a) (ValueIntro err s a) (ValueIntro err s a) (ValueElim err s a)
 
-#ifdef LANGUAGE_PTS_HAS_BOOL
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
     -- | Boolean conjunction
     | ValueAnd (ValueElim err s a) (ValueElim err s a)
 #endif
@@ -150,9 +156,12 @@ data ValueElim err s a
 
 #ifdef LANGUAGE_PTS_HAS_NAT
     -- | Natural number elimination
-    | ValueNatElim (ValueIntro err s a) (ValueIntro err s a) (ValueIntro err s a) (ValueElim err s a)
+    | ValueNatElim IrrSym (Scope IrrSym (ValueIntro err s) a) (ValueIntro err s a) (ValueIntro err s a) (ValueElim err s a)
 
--- -   | ValueNatS (ValueElim err s a)
+#ifdef LANGUAGE_PTS_HAS_NAT_PRIM
+    -- | Natural number addition
+    | ValuePlus (ValueElim err s a) (ValueElim err s a)
+#endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_FIX
@@ -214,58 +223,24 @@ valueAppBind (ValueApp f x) k = case valueAppBind f k of
     f'                -> ValueErr $ review _Err $ ApplyPanic $ ppp0 $ void f'
 
 #if LANGUAGE_PTS_HAS_BOOL
-valueAppBind (ValueBoolElim x a t f b) k =
-    case valueAppBind b k of
-        ValueCoerce b' -> ValueCoerce (ValueBoolElim x a' t' f' b')
-        ValueTrue      -> t'
-        ValueFalse     -> f'
-        ValueErr err   -> ValueErr err
-        b'             -> ValueErr $ review _Err $ ApplyPanic $ ppp0 (void f', void b')
-  where
-    a' = a >>>= k
-    t' = t >>= k
-    f' = f >>= k
+valueAppBind (ValueBoolElim x p t f b) k =
+    valueBoolElim x (p >>>= k) (t >>= k) (f >>= k) (valueAppBind b k)
 
 #if LANGUAGE_PTS_HAS_BOOL_PRIM
 valueAppBind (ValueAnd x y) k =
-    case (valueAppBind x k, valueAppBind y k) of
-        (ValueTrue,  ValueTrue ) -> ValueTrue
-        (ValueTrue,  ValueFalse) -> ValueFalse
-        (ValueFalse, ValueTrue)  -> ValueFalse
-        (ValueFalse, ValueFalse) -> ValueFalse
-
-        (ValueErr err, _) -> ValueErr err
-        (_, ValueErr err) -> ValueErr err
-
-        (ValueTrue,  ValueCoerce y') -> ValueCoerce y'
-        (ValueFalse, ValueCoerce _)  -> ValueFalse
-
-        (ValueCoerce x', ValueTrue)  -> ValueCoerce x'
-        (ValueCoerce _,  ValueFalse) -> ValueFalse
-
-        (ValueCoerce x', ValueCoerce y') -> ValueCoerce (ValueAnd x' y')
-
-        (x', y') -> ValueErr $ review _Err $ ApplyPanic $ ppp0 (void x', void y')
+    valueAnd (valueAppBind x k) (valueAppBind y k)
 #endif
 #endif
 
 #if LANGUAGE_PTS_HAS_NAT
-valueAppBind (ValueNatElim a z s n) k = rec (valueAppBind n k)
-  where
-    rec (ValueCoerce n') = ValueCoerce (ValueNatElim a' z' s' n')
-    rec ValueNatZ        = z'
-    rec (ValueNatS n')   = valueApp (valueApp s' n') (rec n')
-    rec n'               = error $ "panic! valueAppBind ValueNatElim " ++ prettyShow (void n) ++ "\n" ++ prettyShow (void n')
+valueAppBind (ValueNatElim x a z s n) k = 
+    valueNatElim x (a >>>= k) (z >>= k) (s >>= k) (valueAppBind n k)
 
-    a' = a >>= k
-    z' = z >>= k
-    s' = s >>= k
+#if LANGUAGE_PTS_HAS_NAT_PRIM
+valueAppBind (ValuePlus x y) k =
+    valuePlus (valueAppBind x k) (valueAppBind y k)
 #endif
-
--- valueAppBind (ValueNatS n) k = case valueAppBind n k of
---     ValueCoerce n' -> ValueCoerce (ValueNatS n')
---     ValueN n'      -> ValueN (n' + 1)
---     _              -> error "panic! valueAppBind (ValueNatS _)"
+#endif
 
 #if LANGUAGE_PTS_HAS_FIX
 valueAppBind (ValueFix f) k = case valueAppBind f k of
@@ -298,11 +273,15 @@ instance (PrettyPrec err, AsErr err, Specification s) => Monad (ValueElim err s)
 #endif
 
 #if LANGUAGE_PTS_HAS_NAT
-    ValueNatElim a z s n >>= k = ValueNatElim
-        (valueBind a k)
+    ValueNatElim x a z s n >>= k = ValueNatElim x
+        (toScope $ valueBind (fromScope a) $ unvar (return . B) (fmap F . k))
         (valueBind z k)
         (valueBind s k)
         (n >>= k)
+
+#if LANGUAGE_PTS_HAS_NAT_PRIM
+    ValuePlus x y >>= k = ValuePlus (x >>= k) (y >>= k)
+#endif
 #endif
 
 #if LANGUAGE_PTS_HAS_FIX
@@ -364,52 +343,79 @@ valueApp f x = do
     b <- ValueCoerce $ ValueApp (ValueVar True) (return False)
     if b then f else x
 
-{-
+-------------------------------------------------------------------------------
+-- Booleans
+-------------------------------------------------------------------------------
+
 #if LANGUAGE_PTS_HAS_BOOL
 valueBoolElim
-    :: (PrettyPrec err, AsErr err, Specification s)
-    => ValueIntro err s a  -- ^ a : (P : Bool) -> *
-    -> ValueIntro err s a  -- ^ t : P True
-    -> ValueIntro err s a  -- ^ f : P FAlse
-    -> ValueIntro err s a  -- ^ b : Bool
-    -> ValueIntro err s a  -- ^ _ : P b
-valueBoolElim a z s n = do
-    b <- ValueCoerce $ ValueBoolElim
-        (return BE_A)
-        (return BE_T)
-        (return BE_F)
-        (ValueVar BE_B)
-    case b of
-        BE_A -> a
-        BE_T -> z
-        BE_F -> s
-        BE_B -> n
+    :: (Specification s, AsErr err, PrettyPrec err)
+    => IrrSym                             -- ^ x
+    -> Scope IrrSym (ValueIntro err s) a  -- ^ P : s
+    -> ValueIntro err s a                 -- ^ t : P true
+    -> ValueIntro err s a                 -- ^ f : P false
+    -> ValueIntro err s a                 -- ^ b : Bool
+    -> ValueIntro err s a                 -- ^ P b
+valueBoolElim x p t f = go where
+    go (ValueCoerce b) = ValueCoerce (ValueBoolElim x p t f b)
+    go ValueTrue       = t
+    go ValueFalse      = f
+    go (ValueErr err)  = ValueErr err
+    go b               = ValueErr $ review _Err $ ApplyPanic $ ppp0 (void b)
 
-data BE_P = BE_A | BE_T | BE_F | BE_B
+#if LANGUAGE_PTS_HAS_BOOL_PRIM
+valueAnd
+    :: (Specification s, AsErr err, PrettyPrec err)
+    => ValueIntro err s a
+    -> ValueIntro err s a
+    -> ValueIntro err s a
+valueAnd ValueTrue  ValueTrue  = ValueTrue
+valueAnd ValueTrue  ValueFalse = ValueFalse
+valueAnd ValueFalse ValueTrue  = ValueFalse
+valueAnd ValueFalse ValueFalse = ValueFalse
+
+valueAnd (ValueErr err) _ = ValueErr err
+valueAnd _ (ValueErr err) = ValueErr err
+
+valueAnd ValueTrue  (ValueCoerce y) = ValueCoerce y
+valueAnd ValueFalse (ValueCoerce _) = ValueFalse
+
+valueAnd (ValueCoerce x) ValueTrue   = ValueCoerce x
+valueAnd (ValueCoerce _)  ValueFalse = ValueFalse
+
+valueAnd (ValueCoerce x) (ValueCoerce y) = ValueCoerce (ValueAnd x y)
+
+valueAnd x y = ValueErr $ review _Err $ ApplyPanic $ ppp0 (void x, void y)
 #endif
--}
+#endif
+
+-------------------------------------------------------------------------------
+-- Natural numbers
+-------------------------------------------------------------------------------
 
 #if LANGUAGE_PTS_HAS_NAT
 valueNatElim
-    :: (PrettyPrec err, AsErr err, Specification s)
-    => ValueIntro err s a  -- ^ a : (P : Nat) -> *
-    -> ValueIntro err s a  -- ^ z : P 0
-    -> ValueIntro err s a  -- ^ s : (m : Nat) -> P s -> P (succ m)
-    -> ValueIntro err s a  -- ^ n : Nat
-    -> ValueIntro err s a  -- ^ _ : P n
-valueNatElim a z s n = do
-    b <- ValueCoerce $ ValueNatElim
-        (return A)
-        (return Z)
-        (return S)
-        (ValueVar N)
-    case b of
-        A -> a
-        Z -> z
-        S -> s
-        N -> n
+    :: (Specification s, AsErr err, PrettyPrec err)
+    => IrrSym                             -- ^ x
+    -> Scope IrrSym (ValueIntro err s) a  -- ^ P : s
+    -> ValueIntro err s a                 -- ^ z : P 0
+    -> ValueIntro err s a                 -- ^ f : (forall l. P l -> P (succ l)
+    -> ValueIntro err s a                 -- ^ n :  Nat
+    -> ValueIntro err s a                 -- ^ P n
+valueNatElim x p z s = go where
+    go (ValueCoerce n) = ValueCoerce (ValueNatElim x p z s n)
+    go ValueNatZ       = z
+    go (ValueNatS n)   = valueApp (valueApp s n) (go n)
+    go n'              = ValueErr $ review _Err $ ApplyPanic $ ppp0 (void n')
 
-data P = A | Z | S | N
+#if LANGUAGE_PTS_HAS_NAT_PRIM
+valuePlus
+    :: (Specification s, AsErr err, PrettyPrec err)
+    => ValueIntro err s a
+    -> ValueIntro err s a
+    -> ValueIntro err s a
+valuePlus x y = ValueErr $ review _Err $ ApplyPanic $ ppp0 (void x, void y)
+#endif
 #endif
 
 -------------------------------------------------------------------------------
@@ -462,11 +468,17 @@ traverseErrValueElim g (ValueAnd x y) = ValueAnd
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
-traverseErrValueElim f (ValueNatElim a z s n) = ValueNatElim
-    <$> traverseErrValueIntro f a
+traverseErrValueElim f (ValueNatElim x a z s n) = ValueNatElim x
+    <$> (fmap toScope $ traverseErrValueIntro f $ fromScope a)
     <*> traverseErrValueIntro f z
     <*> traverseErrValueIntro f s
     <*> traverseErrValueElim  f n
+
+#ifdef LANGUAGE_PTS_HAS_NAT_PRIM
+traverseErrValueElim g (ValuePlus x y) = ValuePlus
+    <$> traverseErrValueElim g x
+    <*> traverseErrValueElim g y
+#endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_FIX
@@ -525,10 +537,6 @@ instance (Show s, Show err) => Show1 (ValueIntro err s) where
         "ValueNatS" d x
 #endif
 
---    liftShowsPrec _ _ d (ValueN x) = showsUnaryWith
---        showsPrec
---        "ValueN" d x
-
 instance (Show s, Show err) => Show1 (ValueElim err s) where
     liftShowsPrec sp _ d (ValueVar x) =
         showsUnaryWith sp "ValueVar" d x
@@ -544,7 +552,7 @@ instance (Show s, Show err) => Show1 (ValueElim err s) where
         (liftShowsPrec sp sl)
         "ValueBoolElim" d x y z w u
 
-#ifdef LANGUAGE_PTS_HAS_BOOL
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
     liftShowsPrec sp sl d (ValueAnd x y) = showsBinaryWith
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
@@ -553,17 +561,21 @@ instance (Show s, Show err) => Show1 (ValueElim err s) where
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
-    liftShowsPrec sp sl d (ValueNatElim x y z w) = showsQuadWith
+    liftShowsPrec sp sl d (ValueNatElim x y z w u) = showsQuintWith
+        showsPrec
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
-        "ValueNatElim" d x y z w
-#endif
+        "ValueNatElim" d x y z w u
 
---     liftShowsPrec sp sl d (ValueNatS x) = showsUnaryWith
---         (liftShowsPrec sp sl)
---         "ValueVar" d x
+#ifdef LANGUAGE_PTS_HAS_NAT_PRIM
+    liftShowsPrec sp sl d (ValuePlus x y) = showsBinaryWith
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "ValuePlus" d x y
+#endif
+#endif
 
 #ifdef LANGUAGE_PTS_HAS_FIX
     liftShowsPrec sp sl d (ValueFix x) = showsUnaryWith
@@ -615,20 +627,25 @@ instance Eq s => Eq1 (ValueElim err s) where
         liftEq eq f f' &&
         liftEq eq b b'
 
-#ifdef LANGUAGE_PTS_HAS_BOOL
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
     liftEq eq (ValueAnd x y) (ValueAnd x' y') =
         liftEq eq x x' &&
         liftEq eq y y'
 #endif
 #endif
 
-    -- insert
 #ifdef LANGUAGE_PTS_HAS_NAT
-    liftEq eq (ValueNatElim a z s n) (ValueNatElim a' z' s' n') =
+    liftEq eq (ValueNatElim _ a z s n) (ValueNatElim _ a' z' s' n') =
         liftEq eq a a' &&
         liftEq eq z z' &&
         liftEq eq s s' &&
         liftEq eq n n'
+
+#ifdef LANGUAGE_PTS_HAS_NAT_PRIM
+    liftEq eq (ValuePlus x y) (ValuePlus x' y') =
+        liftEq eq x x' &&
+        liftEq eq y y'
+#endif
 #endif
 
     -- catch all case: False
@@ -715,13 +732,21 @@ pppElim d (ValueAnd x y) = pppApplication d
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
-pppElim d (ValueNatElim a z s n) = pppApplication d
+pppElim d (ValueNatElim x a z s n) = pppApplication d
     (pppText "ℕ-elim")
-    [ pppIntro PrecApp a
+    [  pppScopedIrrSym x (\xDoc -> pppLambda PrecApp [xDoc] $ pppIntro PrecLambda $ instantiate1return xDoc a)
     , pppIntro PrecApp z
     , pppIntro PrecApp s
     , pppElim  PrecApp n
     ]
+
+#ifdef LANGUAGE_PTS_HAS_NAT_PRIM
+pppElim d (ValuePlus x y) = pppApplication d
+    (pppText "ℕ-plus")
+    [ pppElim PrecApp x
+    , pppElim PrecApp y
+    ]
+#endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_FIX

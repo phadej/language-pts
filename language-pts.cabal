@@ -48,6 +48,11 @@ flag nat
   manual:  True
   default: False
 
+flag nat-prim
+  description: Add @Nat@ primitives, like @plus@ which reduce more aggressively.
+  manual:  True
+  default: False
+
 flag eta
   description: Perform eta-conversion in @eval_@
   manual:  True
@@ -72,6 +77,8 @@ library
 
   if flag(nat)
     cpp-options: -DLANGUAGE_PTS_HAS_NAT
+    if flag(nat-prim)
+      cpp-options: -DLANGUAGE_PTS_HAS_NAT_PRIM
 
   if flag(eta)
     cpp-options: -DLANGUAGE_PTS_HAS_ETA

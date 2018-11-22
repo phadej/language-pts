@@ -87,11 +87,15 @@ quoteElim (ValueAnd x y) = TermAnd (Inf $ quoteElim x) (Inf $ quoteElim y)
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
-quoteElim (ValueNatElim a s z n) = TermNatElim
-    (quote_ a)
+quoteElim (ValueNatElim x p s z n) = TermNatElim x
+    (quoteScopeInf p)
     (quote_ s)
     (quote_ z)
     (Inf $ quoteElim n)
+
+#ifdef LANGUAGE_PTS_HAS_NAT_PRIM
+quoteElim (ValuePlus x y) = TermPlus (Inf $ quoteElim x) (Inf $ quoteElim y)
+#endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_FIX

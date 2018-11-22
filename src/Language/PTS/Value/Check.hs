@@ -34,5 +34,9 @@ valueType_ _ctx (ValueAnd _ _) = ValueBool
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
-valueType_ _ctx (ValueNatElim p _ _ n) = valueApp p (ValueCoerce n)
+valueType_ _ctx (ValueNatElim _ p _ _ n) = instantiate1 (ValueCoerce n) p
+
+#ifdef LANGUAGE_PTS_HAS_NAT_PRIM
+valueType_ _ctx (ValuePlus _ _) = ValueNat
+#endif
 #endif

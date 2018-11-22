@@ -16,8 +16,7 @@ import Language.PTS.Sym
 import Language.PTS.Term
 import Language.PTS.Value
 
-#if defined(LANGUAGE_PTS_HAS_BOOL) || defined(LANGUAGE_PTS_HAS_NAT)
-import Bound              (closed)
+#ifdef LANGUAGE_PTS_HAS_NAT
 import Language.PTS.Smart
 #endif
 
@@ -84,6 +83,9 @@ rtype_ ts ctx term = case term of
     TermFalse  -> return ValueBool
 
     TermBoolElim _x p t f b -> do
+        -- Check b first, even we have it latter in the rule.
+        rcheck_ ts' ctx b ValueBool
+
         let as = typeSort -- sort of Booleans
 
         -- check sorts
@@ -99,7 +101,6 @@ rtype_ ts ctx term = case term of
 
         rcheck_ ts' ctx t (instantiate1 ValueTrue  p'')
         rcheck_ ts' ctx f (instantiate1 ValueFalse p'')
-        rcheck_ ts' ctx b ValueBool
 
         return $ instantiate1 (eval_ ctx b ValueBool) p''
 
@@ -118,31 +119,41 @@ rtype_ ts ctx term = case term of
         rcheck_ ts' ctx n ValueNat
         return ValueNat
 
-    TermNatElim a z s n -> do
-        -- check sorts
-        let at = unsafeClosed $ pi_ "m" ValueNat (sort_ typeSort)
-        rcheck_ ts' ctx a at
-        let a' = eval_ ctx a at
-        -- Nat -> a
-        rcheck_ ts' ctx z (valueApp a' ValueNatZ)
-        -- Pi l : Nat. a l -> a (succ l)
-        -- TODO: we could use a directly, and then 'nf' too.
-        rcheck_ ts' ctx s $ do
-            _ <- pi_ "l" ValueNat ("a" @@ "l" ~> "a" @@ (ValueNatS "l"))
-            a'
-        -- Nat
+    TermNatElim _x p z s n -> do
+        -- Check n first, even we have it latter in the rule.
         rcheck_ ts' ctx n ValueNat
 
-        return $ a' `valueApp` eval_ ctx n ValueNat
+        let as = typeSort -- sort of Natural numbers
+    
+        -- check sorts
+        let p'   = fromScopeH p
+        let ctx' = addContext ValueNat ctx
+        bs <- rsort_ ts' (addContext ValueNat ctx) p'
+
+        case rule as bs of
+            Nothing -> throwErr $ NoRule (ppp0 as) (ppp0 bs) ts
+            Just _  -> pure ()
+
+
+        let p'' = toScope $ eval_ ctx' p' (ValueSort bs)
+
+        rcheck_ ts' ctx z $ instantiate1 ValueNatZ p''
+        rcheck_ ts' ctx s $ ValuePi "l" ValueNat $ toScope $
+            instantiate1 (pure (B "l")) (fmap F p'') ~>
+            instantiate1 (ValueNatS (pure (B "l"))) (fmap F p'')
+
+        return $ instantiate1 (eval_ ctx n ValueNat) p''
+
+#ifdef LANGUAGE_PTS_HAS_NAT_PRIM
+    TermPlus x y -> do
+        rcheck_ ts' ctx x ValueNat
+        rcheck_ ts' ctx y ValueNat
+        return ValueNat
+#endif
 #endif
   where
     ts' :: [PrettyM Doc]
     ts' = ppp0 term : ts
-
-#if defined(LANGUAGE_PTS_HAS_BOOL) || defined(LANGUAGE_PTS_HAS_NAT)
-unsafeClosed :: Traversable f => f a -> f b
-unsafeClosed = maybe (error "real-panic! unsafeClosed") id . closed
-#endif
 
 -------------------------------------------------------------------------------
 -- Infer sort

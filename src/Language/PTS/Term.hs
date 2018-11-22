@@ -145,21 +145,11 @@ data TermInf s a
     --
     -- \[ \frac
       -- {\array{
-      --  \color{darkblue}{\Gamma, x : \mathbb{B}} \vdash \color{darkgreen}P \Rightarrow \color{darkred}{s}
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}x \Leftarrow \color{darkred}{\mathbb{B}}
       --  \qquad
-      --  (\star, s, s') \in \mathcal{R}
-      --  \cr
-      --  P[x \mapsto \mathsf{True}] \leadsto \tau \qquad
-      --  \color{darkblue}\Gamma \vdash \color{darkgreen}t \Leftarrow \color{darkred}{\tau}
-      --  \cr
-      --  P[x \mapsto \mathsf{False}] \leadsto \tau' \qquad
-      --  \color{darkblue}\Gamma \vdash \color{darkgreen}f \Leftarrow \color{darkred}{\tau'}
-      --  \cr
-      --  \color{darkblue}\Gamma \vdash \color{darkgreen}b \Leftarrow \color{darkred}{\mathbb{B}}
-      --  \qquad
-      --  P[x \mapsto b] \leadsto \sigma
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}y \Leftarrow \color{darkred}{\mathbb{B}}
       -- }}
-      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathsf{and}\,x\,y}}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}\mathsf{-and}\,x\,y} \Rightarrow \color{darkred}{\mathbb{B}} }
     -- \]
     | TermAnd (TermChk s a) (TermChk s a)
 #endif
@@ -198,22 +188,39 @@ data TermInf s a
     --
     -- \[ \frac
       -- {\array{
-      --  \color{darkblue}\Gamma \vdash \color{darkgreen}a \Leftarrow \color{darkred}{\mathbb{N} \to \star}
+      --  \color{darkblue}{\Gamma, x : \mathbb{N}} \vdash \color{darkgreen}P \Leftarrow \color{darkred}{s}
+      --  \qquad
+      --  (\star, s, s') \in \mathcal{R}
       --  \cr
-      --  a\,\mathsf{Zero} \leadsto \tau \qquad
+      --  P[x \mapsto \mathsf{Zero}] \leadsto \tau \qquad
       --  \color{darkblue}\Gamma \vdash \color{darkgreen}z \Leftarrow \color{darkred}{\tau}
       --  \cr
-      --  \Pi m : \mathbb{N}. a\,m \to a\,(\mathsf{Succ}\,m)
+      --  \Pi l : \mathbb{N}. P[x \mapsto l] \to P[x \mapsto \mathsf{Succ}\,l]
       --  \leadsto \tau' \qquad
       --  \color{darkblue}\Gamma \vdash \color{darkgreen}s \Leftarrow \color{darkred}{\tau'}
       --  \cr
       --  \color{darkblue}\Gamma \vdash \color{darkgreen}n \Leftarrow \color{darkred}{\mathbb{N}}
       --  \qquad
-      --  a\,n \leadsto \sigma
+      --  P[x \mapsto n] \leadsto \sigma
       -- }}
-      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{N}\mathsf{-elim}\,a\,z\,s\,n} \Rightarrow \color{darkred}{\sigma} }
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{N}\mathsf{-elim}\,(\lambda x \to p)\,z\,s\,n} \Rightarrow \color{darkred}{\sigma} }
     -- \]
-    | TermNatElim (TermChk s a) (TermChk s a) (TermChk s a) (TermChk s a)
+    | TermNatElim IrrSym (ScopeH IrrSym (TermInf s) (TermInf s) a) (TermChk s a) (TermChk s a) (TermChk s a)
+
+#ifdef LANGUAGE_PTS_HAS_NAT_PRIM
+
+    -- | Natural number addition, @plus@.
+    --
+    -- \[ \frac
+      -- {\array{
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}x \Leftarrow \color{darkred}{\mathbb{N}}
+      --  \qquad
+      --  \color{darkblue}\Gamma \vdash \color{darkgreen}y \Leftarrow \color{darkred}{\mathbb{N}}
+      -- }}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{N}\mathsf{-plus}\,x\,y} \Rightarrow \color{darkred}{\mathbb{N}} }
+    -- \]
+    | TermPlus (TermChk s a) (TermChk s a)
+#endif
 #endif
 
   deriving (Functor, Foldable, Traversable)
@@ -306,12 +313,20 @@ instance Show s => Show1 (TermInf s) where
     liftShowsPrec sp sl d (TermNatS x) = showsUnaryWith
         (liftShowsPrec sp sl)
         "TermNatS" d x
-    liftShowsPrec sp sl d (TermNatElim x y z w) = showsQuadWith
+    liftShowsPrec sp sl d (TermNatElim x y z w u) = showsQuintWith
+        showsPrec
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
-        "TermNatElim" d x y z w
+        "TermNatElim" d x y z w u
+
+#ifdef LANGUAGE_PTS_HAS_NAT_PRIM
+    liftShowsPrec sp sl d (TermPlus x y) = showsBinaryWith
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "TermPlus" d x y
+#endif
 #endif
 
 instance (Show a, Show s) => Show (TermInf s a) where showsPrec = showsPrec1
@@ -360,13 +375,21 @@ pppInf _ TermNatZ     = pppChar '0'
 pppInf d (TermNatS n)
     | Just m <- termChkToNatural n = pppIntegral m
     | otherwise                    = pppApplication d (pppChar 'S') [pppChk PrecApp n]
-pppInf d (TermNatElim a z s n) = pppApplication d
+pppInf d (TermNatElim x p z s n) = pppApplication d
         (pppText "ℕ-elim")
-        [ pppChk PrecApp a
+        [ pppScopedIrrSym x $ \xDoc -> pppLambda PrecApp [xDoc] $ pppInf PrecLambda $ instantiate1Hreturn xDoc p
         , pppChk PrecApp z
         , pppChk PrecApp s
         , pppChk PrecApp n
         ]
+
+#ifdef LANGUAGE_PTS_HAS_NAT_PRIM
+pppInf d (TermPlus x y) = pppApplication d
+    (pppText "ℕ-plus")
+    [ pppChk PrecApp x
+    , pppChk PrecApp y
+    ]
+#endif
 #endif
 
 pppPeelPi :: Specification s => TermInf s Doc -> PrettyM ([PPPi], PrettyM Doc)
@@ -448,11 +471,15 @@ instance Monad (TermInf s) where
     TermNat             >>= _ = TermNat
     TermNatZ            >>= _ = TermNatZ
     TermNatS n          >>= k = TermNatS (n >>== k)
-    TermNatElim a z s n >>= k = TermNatElim
-        (a >>== k)
+    TermNatElim x p z s n >>= k = TermNatElim x
+        (p >>== k)
         (z >>== k)
         (s >>== k)
         (n >>== k)
+
+#ifdef LANGUAGE_PTS_HAS_NAT_PRIM
+    TermPlus x y >>= k = TermPlus (x >>== k) (y >>== k)
+#endif
 #endif
 
 instance Module (TermChk s) (TermInf s) where

@@ -14,7 +14,7 @@ module Language.PTS.Examples.Booleans (
 
 import Language.PTS
 
-#if defined(LANGUAGE_PTS_HAS_BOOL) && defined(LANGUAGE_PTS_HAS_NAT)
+#if defined(LANGUAGE_PTS_HAS_BOOL) && (defined(LANGUAGE_PTS_HAS_NAT) || defined(LANGUAGE_PTS_HAS_BOOL_PRIM))
 import Language.PTS.Bound
 #endif
 
