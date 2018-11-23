@@ -49,6 +49,18 @@ class (Specification s, Monad m) => Script s m | m -> s where
         -> Term s         -- ^ type
         -> TermChk s Sym  -- ^ term
         -> m ()
+    define_ = defineChk_
+
+    defineChk_
+        :: Sym            -- ^ name
+        -> Term s         -- ^ type
+        -> TermChk s Sym  -- ^ term
+        -> m ()
+
+    defineInf_
+        :: Sym            -- ^ name
+        -> Term s         -- ^ term
+        -> m ()
 
     -- | Evaluate an example value.
     example_ :: Term s -> m ()
@@ -198,7 +210,7 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
         sSubsection .= m + 1
         _unScriptT $ loudPutStrLn $ "-- " ++ show n ++ "." ++ show (m + 1) ++ ". " ++ str
 
-    define_ n t x = do
+    defineChk_ n t x = do
         startCommand CDefine
         output <- ScriptT $ use sOutput
 
@@ -232,6 +244,31 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
 
         -- putPP $ "checked type" </> ppp0 t'
         sTerms . at n ?= (Ann x t, t')
+
+    defineInf_ n x = do
+        startCommand CDefine
+        output <- ScriptT $ use sOutput
+
+        if output
+        then putPP $ "λ» :define" <+> ppp0 n
+                </> pppChar '=' <+> ppp0 x
+        else do
+            let xDoc = ppp0 x
+            let str = prettyShowWith (PP.defaultOptions { PP.optsPageWidth = maxBound }) xDoc
+                str' = let (pfx, sfx) = splitAt 20 str in pfx ++ takeWhile (/= ' ') sfx
+            let doc = if length str > 20 then pppText $ str' ++ ".." else xDoc
+            putPP $ "λ» :define" <+> ppp0 n
+                </> pppChar '=' <+> doc
+
+        terms <- use sTerms
+        when (has (ix n) terms) $ throwErr "Already defined"
+
+        let typeCtx  n' = terms ^? ix n' . _2
+
+        t <- type_ typeCtx x
+        t' <- errorlessValueIntro t
+
+        sTerms . at n ?= (x, t')
 
     example_ x = do
         output <- ScriptT $ use sOutput
