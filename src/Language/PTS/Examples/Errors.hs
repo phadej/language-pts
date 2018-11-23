@@ -49,7 +49,7 @@ annotationError = ()
 -- value will fail:
 --
 -- >>> prettyPut (sort_ LambdaStar `valueApp` "False" :: Value LambdaStar)
--- panic: Trying to apply not-a-lambda ⋆
+-- panic 'apply': Trying to apply not-a-lambda ⋆
 --
 -- We don't print a value we try to apply, because it's still not evaluated.
 -- (often some variable in a scope).

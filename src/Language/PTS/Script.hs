@@ -286,8 +286,8 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
 
     dumpDefs_ = do
         defs <- use sDefinitions
-        for_ (reverse defs) $ \(n, t) -> 
-            putPP $ ppp0 n <+> "=" <+> ppp0 t
+        for_ (reverse defs) $ \(n, x) ->
+            putPP $ ppp0 n <+> pppChar '=' <+> ppp0 x
 
     example_ x = do
         output <- ScriptT $ use sOutput
@@ -296,9 +296,7 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
             putPP $ "λ» :example" <+> ppp0 x
             terms <- use sTerms
             let typeCtx  n' = terms ^? ix n' . _2
-            let valueCtx n' = case terms ^? ix n' . _1 of
-                    Nothing -> return n'
-                    Just y  -> y >>= valueCtx -- todo recursively add everything
+            let valueCtx n' = maybe (return n') id $ terms ^? ix n' . _1
 
             t <- type_ typeCtx x
             t' <- errorlessValueIntro t

@@ -78,7 +78,7 @@ data Err
       -- ^ apply warning in 'Term' type-checker.
     | SortWithoutAxiom (PrettyM Doc) [PrettyM Doc]
       -- ^ abstracting over a sort without an axiom.
-    | ApplyPanic (PrettyM Doc)
+    | ApplyPanic String (PrettyM Doc)
       -- ^ apply panic in 'Value' evaluator
     | OccursFailure (PrettyM Doc) (PrettyM Doc)
       -- ^ Occurs failure, i.e infinite type
@@ -121,8 +121,8 @@ instance PrettyPrec Err where
     ppp _ (SortWithoutAxiom s ctx)         = pppError ctx
         [ "Type-less sort" <+> s <+> "(no axiom exist)"
         ]
-    ppp _ (ApplyPanic f) =
-        "panic:" </> err
+    ppp _ (ApplyPanic tag f) =
+        "panic '" <> pppText tag <> "':" </> err
       where
         err = "Trying to apply not-a-lambda" <+> f
 
