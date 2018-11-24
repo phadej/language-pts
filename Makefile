@@ -10,6 +10,9 @@ build-all : build
 test : build doctest
 	cabal new-test
 
+test-all : build-all doctest-all
+	cabal new-test
+
 ghcid :
 	ghcid -c 'cabal new-repl'
 

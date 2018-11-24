@@ -62,20 +62,23 @@ evalInf
     => (a -> Maybe (ValueIntro err s a))  -- ^ Context
     -> TermInf s a
     -> ValueIntro err s a
-evalInf _ctx (Var x)    = ValueCoerce (ValueVar x)
-evalInf _ctx (Sort s)   = ValueSort s
-evalInf  ctx (App f x)  = case evalInf ctx f of
+evalInf _ctx (Var x)         = ValueCoerce (ValueVar x)
+evalInf _ctx (Sort s)        = ValueSort s
+evalInf  ctx (Ann x t)       = evalChk ctx x (evalInf ctx t)
+evalInf  ctx (Pi n a b)      = ValuePi n a' (toScope $ evalInf (addContext a' ctx) $ fromScopeH b)
+  where
+    a' = evalInf ctx a
+
+-- Application is tricky
+evalInf  ctx (App f (Inf x)) = valueApp (evalInf ctx f) (evalInf ctx x)
+evalInf  ctx (App f x)       = case evalInf ctx f of
     ValueLam _n t f' -> instantiate1 (evalChk ctx x t) f'
     ValueErr err     -> ValueErr err
     ValueCoerce f'   -> case valueType_ ctx f' of
         ValueErr err    -> ValueErr err
         ValuePi _x t _b -> ValueCoerce (ValueApp f' (evalChk ctx x t))
-        _               -> ValueErr $ review _Err $ ApplyPanic (ppp0 f')
-    f'               -> ValueErr $ review _Err $ ApplyPanic (ppp0 f')
-evalInf ctx (Ann x t)  = evalChk ctx x (evalInf ctx t)
-evalInf ctx (Pi n a b) = ValuePi n a' (toScope $ evalInf (addContext a' ctx) $ fromScopeH b)
-  where
-    a' = evalInf ctx a
+        t'              -> ValueErr $ review _Err $ ApplyPanic "not-pi" $ ppp0 (t', x)
+    f'               -> ValueErr $ review _Err $ ApplyPanic "eval-inf" (ppp0 f')
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
 evalInf _ctx TermBool                 = ValueBool

@@ -14,6 +14,7 @@ module Language.PTS.Examples (
     lambdaStarPlus,
     natCtx,
 #ifdef LANGUAGE_PTS_HAS_NAT
+    natScript,
     natSucc,
     natCtx',
 #endif
@@ -105,6 +106,36 @@ natElimType' = pi_ "m"
 
 natSucc :: Term LambdaStar
 natSucc = let_ natCtx' $ "s" @@ ("s" @@ "z")
+
+-- | This is small script to test 'dumpDefs_' implementation.
+--
+-- >>> runLoud $ spec_ (MartinLof 0) >> natScript
+-- λ» :define Nat = ℕ
+-- λ» :define zero = 0
+-- λ» :define succ : Nat → Nat = λ n → S n
+-- λ» :define 0 = zero
+-- λ» :define 1 = succ 0
+-- λ» :define 2 = succ 1
+-- Nat = ℕ
+-- zero = 0
+-- succ = λ n → S n : Nat → Nat
+-- 0 = zero
+-- 1 = succ 0
+-- 2 = succ 1
+-- ∎
+--
+natScript :: Script s m => m ()
+natScript = do
+    defineInf_ "Nat" TermNat
+    defineInf_ "zero" TermNatZ
+    define_ "succ"
+        $$ "Nat" ~> "Nat"
+        $$ lam_ "n" (Inf $ TermNatS "n")
+    defineInf_ "0" "zero"
+    defineInf_ "1" $ "succ" @@ "0"
+    defineInf_ "2" $ "succ" @@ "1"
+
+    dumpDefs_
 
 natCtx' :: Specification s => [(Sym, Term s)]
 natCtx' =

@@ -346,7 +346,7 @@ valueApp
 valueApp (ValueCoerce f)    x = ValueCoerce (ValueApp f x)
 valueApp (ValueLam _n _t f) x = instantiate1 x f
 valueApp (ValueErr err)     _ = ValueErr err
-valueApp f'                 _ = ValueErr $ review _Err $ ApplyPanic $ ppp0 $ void f'
+valueApp f'                 _ = ValueErr $ review _Err $ ApplyPanic "apply" $ ppp0 $ void f'
 
 -------------------------------------------------------------------------------
 -- Booleans
@@ -366,7 +366,7 @@ valueBoolElim x p t f = go where
     go ValueTrue       = t
     go ValueFalse      = f
     go (ValueErr err)  = ValueErr err
-    go b               = ValueErr $ review _Err $ ApplyPanic $ ppp0 (void b)
+    go b               = ValueErr $ review _Err $ ApplyPanic "𝔹-elim" $ ppp0 (void b)
 
 #if LANGUAGE_PTS_HAS_BOOL_PRIM
 valueAnd
@@ -390,7 +390,7 @@ valueAnd (ValueCoerce _)  ValueFalse = ValueFalse
 
 valueAnd (ValueCoerce x) (ValueCoerce y) = ValueCoerce (ValueAnd x y)
 
-valueAnd x y = ValueErr $ review _Err $ ApplyPanic $ ppp0 (void x, void y)
+valueAnd x y = ValueErr $ review _Err $ ApplyPanic "𝔹-and" $ ppp0 (void x, void y)
 #endif
 #endif
 
@@ -411,7 +411,7 @@ valueNatElim x p z s = go where
     go (ValueCoerce n) = ValueCoerce (ValueNatElim x p z s n)
     go ValueNatZ       = z
     go (ValueNatS n)   = s `valueApp` n `valueApp` go n
-    go n'              = ValueErr $ review _Err $ ApplyPanic $ ppp0 (void n')
+    go n'              = ValueErr $ review _Err $ ApplyPanic "ℕ-elim" $ ppp0 (void n')
 
 #if LANGUAGE_PTS_HAS_NAT_PRIM
 valuePlus
@@ -429,7 +429,7 @@ valuePlus (ValueCoerce n) (ValueCoerce m) = ValueCoerce (ValuePlus n m)
 
 valuePlus (ValueErr err) _ = ValueErr err
 valuePlus _ (ValueErr err) = ValueErr err
-valuePlus x y = ValueErr $ review _Err $ ApplyPanic $ ppp0 (void x, void y)
+valuePlus x y = ValueErr $ review _Err $ ApplyPanic "ℕ-plus" $ ppp0 (void x, void y)
 
 valueTimes
     :: (Specification s, AsErr err, PrettyPrec err)
@@ -446,7 +446,7 @@ valueTimes (ValueCoerce n) (ValueCoerce m) = ValueCoerce (ValueTimes n m)
 
 valueTimes (ValueErr err) _ = ValueErr err
 valueTimes _ (ValueErr err) = ValueErr err
-valueTimes x y = ValueErr $ review _Err $ ApplyPanic $ ppp0 (void x, void y)
+valueTimes x y = ValueErr $ review _Err $ ApplyPanic "ℕ-times" $ ppp0 (void x, void y)
 #endif
 #endif
 

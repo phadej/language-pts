@@ -17,6 +17,7 @@ module Language.PTS.Script (
 import Control.Lens
 import Control.Monad.Except
 import Control.Monad.State.Strict (MonadState, runState, State, StateT, evalStateT)
+import Data.Foldable (for_)
 import Data.Map.Strict            (Map)
 import Data.Void                  (Void)
 
@@ -49,6 +50,18 @@ class (Specification s, Monad m) => Script s m | m -> s where
         -> Term s         -- ^ type
         -> TermChk s Sym  -- ^ term
         -> m ()
+    define_ = defineChk_
+
+    defineChk_
+        :: Sym            -- ^ name
+        -> Term s         -- ^ type
+        -> TermChk s Sym  -- ^ term
+        -> m ()
+
+    defineInf_
+        :: Sym            -- ^ name
+        -> Term s         -- ^ term
+        -> m ()
 
     -- | Evaluate an example value.
     example_ :: Term s -> m ()
@@ -58,6 +71,9 @@ class (Specification s, Monad m) => Script s m | m -> s where
 
     section_    :: String -> m ()
     subsection_ :: String -> m ()
+
+    -- | Dump definitions
+    dumpDefs_ :: m ()
 
 -- | Tell used specification. Helps type-inference.
 spec_ :: Script s m => s -> m ()
@@ -89,6 +105,7 @@ renderOpts w = PP.defaultOptions { PP.optsPageWidth = w }
 
 data S m s = S
     { _sTerms       :: !(Map Sym (Term s, Value s)) -- ^ defined terms
+    , _sDefinitions :: ![(Sym, Term s)]             -- ^ terms in a /reverse/ definition order
     , _sLastCommand :: !(Maybe C)                   -- ^ previous command
     , _sSection     :: !Int
     , _sSubsection  :: !Int
@@ -101,6 +118,9 @@ data C = CComment | CHeader | CDefine | CExample deriving (Eq)
 
 sTerms :: Lens' (S m s) (Map Sym (Term s, Value s))
 sTerms = lens _sTerms (\s x -> s { _sTerms = x })
+
+sDefinitions :: Lens' (S m s) [(Sym, Term s)]
+sDefinitions = lens _sDefinitions (\s x -> s { _sDefinitions = x })
 
 sLastCommand :: Lens' (S m s) (Maybe C)
 sLastCommand = lens _sLastCommand (\s x -> s { _sLastCommand = x })
@@ -123,6 +143,7 @@ sWidth = lens _sWidth (\s x -> s { _sWidth = x })
 emptyS :: (String -> m ()) -> S m s
 emptyS put = S
     { _sTerms       = mempty
+    , _sDefinitions = []
     , _sLastCommand = Nothing
     , _sSection     = 0
     , _sSubsection  = 0
@@ -198,7 +219,7 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
         sSubsection .= m + 1
         _unScriptT $ loudPutStrLn $ "-- " ++ show n ++ "." ++ show (m + 1) ++ ". " ++ str
 
-    define_ n t x = do
+    defineChk_ n t x = do
         startCommand CDefine
         output <- ScriptT $ use sOutput
 
@@ -219,19 +240,53 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
         when (has (ix n) terms) $ throwErr "Already defined"
 
         let typeCtx  n' = terms ^? ix n' . _2
-        let valueCtx n' = case terms ^? ix n' . _1 of
-                Nothing -> return n'
-                Just y  -> y >>= valueCtx -- todo recursively add everything
+        let valueCtx n' = maybe (return n') id $ terms ^? ix n' . _1
 
-        ts <- type_ typeCtx t >>= \s -> case s of
+        let t' = t >>= valueCtx
+        ts <- type_ typeCtx t' >>= \s -> case s of
             ValueSort s' -> return s'
             _            -> throwErr "type of 'type' is not a sort"
+        t'' <- errorlessValueIntro $ eval_ typeCtx t' (ValueSort ts)
 
-        t' <- errorlessValueIntro $ eval_ typeCtx (t >>= valueCtx) (ValueSort ts)
-        check_ typeCtx (x >>== valueCtx) t'
+        let x' = x >>== valueCtx
+        check_ typeCtx x' t''
 
         -- putPP $ "checked type" </> ppp0 t'
-        sTerms . at n ?= (Ann x t, t')
+        sTerms . at n ?= (Ann x' t', t'')
+        sDefinitions %= ((n, Ann x t) :)
+
+    defineInf_ n x = do
+        startCommand CDefine
+        output <- ScriptT $ use sOutput
+
+        if output
+        then putPP $ "λ» :define" <+> ppp0 n
+                </> pppChar '=' <+> ppp0 x
+        else do
+            let xDoc = ppp0 x
+            let str = prettyShowWith (PP.defaultOptions { PP.optsPageWidth = maxBound }) xDoc
+                str' = let (pfx, sfx) = splitAt 20 str in pfx ++ takeWhile (/= ' ') sfx
+            let doc = if length str > 20 then pppText $ str' ++ ".." else xDoc
+            putPP $ "λ» :define" <+> ppp0 n
+                </> pppChar '=' <+> doc
+
+        terms <- use sTerms
+        when (has (ix n) terms) $ throwErr "Already defined"
+
+        let typeCtx  n' = terms ^? ix n' . _2
+        let valueCtx n' = maybe (return n') id $ terms ^? ix n' . _1
+
+        let x' = x >>= valueCtx
+        t <- type_ typeCtx x'
+        t' <- errorlessValueIntro t
+
+        sTerms . at n ?= (x', t')
+        sDefinitions %= ((n, x) :)
+
+    dumpDefs_ = do
+        defs <- use sDefinitions
+        for_ (reverse defs) $ \(n, x) ->
+            putPP $ ppp0 n <+> pppChar '=' <+> ppp0 x
 
     example_ x = do
         output <- ScriptT $ use sOutput
@@ -240,9 +295,7 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
             putPP $ "λ» :example" <+> ppp0 x
             terms <- use sTerms
             let typeCtx  n' = terms ^? ix n' . _2
-            let valueCtx n' = case terms ^? ix n' . _1 of
-                    Nothing -> return n'
-                    Just y  -> y >>= valueCtx -- todo recursively add everything
+            let valueCtx n' = maybe (return n') id $ terms ^? ix n' . _1
 
             t <- type_ typeCtx x
             t' <- errorlessValueIntro t

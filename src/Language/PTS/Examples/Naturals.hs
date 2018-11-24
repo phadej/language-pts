@@ -29,10 +29,10 @@ import Language.PTS.Bound
 -- ---------------
 -- --
 -- λ» :define succ : ℕ → ℕ = λ n → S n
--- λ» :define zero : ℕ = 0
--- λ» :define one : ℕ = succ zero
--- λ» :define two : ℕ = succ one
--- λ» :define three : ℕ = succ two
+-- λ» :define zero = 0
+-- λ» :define one = succ zero
+-- λ» :define two = succ one
+-- λ» :define three = succ two
 -- --
 -- λ» :example zero
 -- ↪ 0 : ℕ
@@ -199,20 +199,16 @@ naturalsPrimScript = do
         $$ TermNat ~> TermNat
         $$ lam_ "n" (Inf $ TermNatS "n")
 
-    define_ "zero"
-        $$ TermNat
-        $$ Inf TermNatZ
+    defineInf_ "zero"
+        $$ TermNatZ
 
-    define_ "one"
-        $$ TermNat
+    defineInf_ "one"
         $$ "succ" @@ "zero"
 
-    define_ "two"
-        $$ TermNat
+    defineInf_ "two"
         $$ "succ" @@ "one"
 
-    define_ "three"
-        $$ TermNat
+    defineInf_ "three"
         $$ "succ" @@ "two"
 
     example_ "zero"

@@ -1,5 +1,5 @@
 module Language.PTS.Value.Check (
-    valueType_
+    valueType_,
     ) where
 
 import Control.Lens ((#))
@@ -41,3 +41,42 @@ valueType_ _ctx (ValuePlus _ _)  = ValueNat
 valueType_ _ctx (ValueTimes _ _) = ValueNat
 #endif
 #endif
+
+{-
+valueIntroType_
+    :: (Specification s, AsErr err, PrettyPrec err, PrettyPrec a)
+    => (a -> Maybe (ValueIntro err s a))
+    -> ValueIntro err s a
+    -> ValueIntro err s a
+valueIntroType_ ctx (ValueLam x t b) = ValuePi x t
+    $ toScope $ valueIntroType_ (addContext t ctx) $ fromScope b
+valueIntroType_ ctx (ValueCoerce x) = valueType_ ctx x
+valueIntroType_ _ctx (ValueSort s) = case axiom s of
+    Nothing -> ValueErr $ _Err # SortWithoutAxiom (ppp0 s) []
+    Just s' -> ValueSort s'
+valueIntroType_ ctx (ValuePi _ t b) =
+    case valueIntroType_ ctx t of
+        ValueSort as  -> case valueIntroType_ (addContext t ctx) (fromScope b) of
+            ValueSort bs -> case rule as bs of
+                Nothing -> ValueErr $ _Err # NoRule (ppp0 as) (ppp0 bs) []
+                Just cs -> ValueSort cs
+            ValueErr err -> ValueErr err
+            _            -> ValueErr $ _Err # SomeErr "not a sort"
+        ValueErr err -> ValueErr err
+        _            -> ValueErr $ _Err # SomeErr "not a sort"
+valueIntroType_ _ctx (ValueErr err) = ValueErr err
+valueIntroType_ _ctx ValueBool = ValueSort typeSort
+valueIntroType_ _ctx ValueTrue = ValueBool
+valueIntroType_ _ctx ValueFalse = ValueBool
+valueIntroType_ _ctx ValueNat = ValueSort typeSort
+valueIntroType_ _ctx ValueNatZ = ValueNat
+valueIntroType_ _ctx (ValueNatS _) = ValueNat ~> ValueNat
+
+addContext
+    :: ValueIntro err s a                  -- ^ x
+    -> (a -> Maybe (ValueIntro err s a))   -- ^ context
+    -> Var IrrSym a
+    -> Maybe (ValueIntro err s (Var b a))
+addContext x _ (B _) = Just (F <$> x)
+addContext _ f (F x) = fmap F <$> f x
+-}
