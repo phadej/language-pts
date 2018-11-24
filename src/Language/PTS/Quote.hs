@@ -12,7 +12,7 @@
 -- Unlike /LambdaPi/, our 'Value' has 'Eq' instance. Therefore we
 -- don't need quotation for type-checker. It's sometimes useful anyway.
 --
--- >>> t <- type_ emptyCtx systemfIdentity >>= errorlessValueIntro'
+-- >>> t <- type_ emptyCtx systemfIdentity >>= errorlessValueIntro' . snd
 -- >>> prettyPut t
 -- ∀ a → a → a
 --
@@ -25,7 +25,9 @@
 -- >>> :t quote_ t
 -- quote_ t :: TermChk SystemF Sym
 --
--- >>> check_ emptyCtx (quote_ t) (sort_ SysFStar)
+-- >>> t' <- check_ emptyCtx (quote_ t) (sort_ SysFStar) >>= errorlessValueIntro'
+-- >>> prettyPut t'
+-- ∀ a → a → a
 --
 module Language.PTS.Quote (Quote (..)) where
 

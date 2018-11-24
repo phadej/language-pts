@@ -5,11 +5,8 @@ module Language.PTS.Check (
     check_,
     ) where
 
-import Control.Monad (unless)
-
 import Language.PTS.Bound
 import Language.PTS.Error
-import Language.PTS.Eval
 import Language.PTS.Pretty
 import Language.PTS.Specification
 import Language.PTS.Sym
@@ -27,9 +24,9 @@ import Language.PTS.Smart
 -- | We can infer the type of 'TermInf'...
 type_
     :: (Eq a, Show a, PrettyPrec a, Specification s, MonadErr m, PrettyPrec err, AsErr err)
-    => (a -> Maybe (ValueIntro err s a))  -- ^ environment
-    -> TermInf s a                        -- ^ term to type-check
-    -> m (ValueIntro err s a)             -- ^ as result we get term's type.
+    => (a -> Maybe (ValueIntro err s a))           -- ^ environment
+    -> TermInf s a                                 -- ^ term to type-check
+    -> m (ValueIntro err s a, ValueIntro err s a)  -- ^ as result we get evaluated term and its type.
 type_ = rtype_ []
 
 -- | ... and check the type of 'TermChk'.
@@ -38,7 +35,7 @@ check_
     => (a -> Maybe (ValueIntro err s a))  -- ^ environment
     -> TermChk s a                        -- ^ term to check
     -> ValueIntro err s a                 -- ^ expected type
-    -> m ()
+    -> m (ValueIntro err s a)             -- ^ as result we get evaluated term
 check_ = rcheck_ []
 
 -------------------------------------------------------------------------------
@@ -50,110 +47,104 @@ rtype_
     => [PrettyM Doc] -- ^ terms we walked through, for error reporting
     -> (a -> Maybe (ValueIntro err s a))
     -> TermInf s a
-    -> m (ValueIntro err s a)
+    -> m (ValueIntro err s a, ValueIntro err s a)
 rtype_ ts ctx term = case term of
     Var a -> case ctx a of
         Nothing -> throwErr $ VariableNotInScope (ppp0 a) ts
-        Just t  -> return t
+        Just t  -> return (return a, t)
     Sort s -> case axiom s of
         Nothing -> throwErr $ SortWithoutAxiom (ppp0 s) ts
-        Just s' -> return $ ValueSort s'
+        Just s' -> return $ (ValueSort s, ValueSort s')
     Ann x t -> do
-        s <- rsort_ ts'  ctx t
-        let t' = eval_ ctx t (ValueSort s)
-        rcheck_ ts' ctx x t'
-        return t'
+        (t', _) <- rsort_ ts'  ctx t
+        x' <- rcheck_ ts' ctx x t'
+        return (x', t')
     App f x -> do
-        ft <- rtype_ ts' ctx f
+        (f', ft) <- rtype_ ts' ctx f
         case ft of
             ValuePi _n a b -> do
-                rcheck_ ts' ctx x a
-                return $ instantiate1 (eval_ ctx x a) b
+                x' <- rcheck_ ts' ctx x a
+                return (valueApp f' x', instantiate1 x' b)
             _ -> throwErr $ NotAFunction (ppp0 ft) (ppp0 f) (ppp0 x) ts'
-    Pi _n a b -> do
-        as <- rsort_ ts' ctx a
-        bs <- rsort_ ts' (addContext (eval_ ctx a (ValueSort as)) ctx) (fromScopeH b)
+    Pi x a b -> do
+        (a', as) <- rsort_ ts' ctx a
+        (b', bs) <- rsort_ ts' (addContext a' ctx) (fromScopeH b)
         case rule as bs of
             Nothing -> throwErr $ NoRule (ppp0 as) (ppp0 bs) ts
-            Just cs -> return $ ValueSort cs
+            Just cs -> return (ValuePi x a' (toScope b'), ValueSort cs)
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
-    TermBool   -> return (ValueSort typeSort)
-    TermTrue   -> return ValueBool
-    TermFalse  -> return ValueBool
+    TermBool   -> return (ValueBool, ValueSort typeSort)
+    TermTrue   -> return (ValueTrue, ValueBool)
+    TermFalse  -> return (ValueFalse, ValueBool)
 
-    TermBoolElim _x p t f b -> do
+    TermBoolElim x p t f b -> do
         -- Check b first, even we have it latter in the rule.
-        rcheck_ ts' ctx b ValueBool
+        b' <- rcheck_ ts' ctx b ValueBool
 
         let as = typeSort -- sort of Booleans
 
         -- check sorts
-        let p'   = fromScopeH p
-        let ctx' = addContext ValueBool ctx
-        bs <- rsort_ ts' (addContext ValueBool ctx) p'
+        let pp   = fromScopeH p
+        (pp', bs) <- rsort_ ts' (addContext ValueBool ctx) pp
+        let p' = toScope pp'
 
         case rule as bs of
             Nothing -> throwErr $ NoRule (ppp0 as) (ppp0 bs) ts
             Just _  -> pure ()
 
-        let p'' = toScope $ eval_ ctx' p' (ValueSort bs)
+        t' <- rcheck_ ts' ctx t (instantiate1 ValueTrue  p')
+        f' <- rcheck_ ts' ctx f (instantiate1 ValueFalse p')
 
-        rcheck_ ts' ctx t (instantiate1 ValueTrue  p'')
-        rcheck_ ts' ctx f (instantiate1 ValueFalse p'')
-
-        return $ instantiate1 (eval_ ctx b ValueBool) p''
+        return (valueBoolElim x p' t' f' b', instantiate1 b' p')
 
 #ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
     TermAnd x y -> do
-        rcheck_ ts' ctx x ValueBool
-        rcheck_ ts' ctx y ValueBool
-        return ValueBool
+        x' <- rcheck_ ts' ctx x ValueBool
+        y' <- rcheck_ ts' ctx y ValueBool
+        return (valueAnd x' y', ValueBool)
 #endif
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
-    TermNat    -> return (ValueSort typeSort)
-    TermNatZ   -> return ValueNat
+    TermNat    -> return (ValueNat, ValueSort typeSort)
+    TermNatZ   -> return (ValueNatZ, ValueNat)
     TermNatS n -> do
-        rcheck_ ts' ctx n ValueNat
-        return ValueNat
+        n' <- rcheck_ ts' ctx n ValueNat
+        return (ValueNatS n', ValueNat)
 
-    TermNatElim _x p z s n -> do
+    TermNatElim x p z s n -> do
         -- Check n first, even we have it latter in the rule.
-        rcheck_ ts' ctx n ValueNat
+        n' <- rcheck_ ts' ctx n ValueNat
 
         let as = typeSort -- sort of Natural numbers
 
         -- check sorts
-        let p'   = fromScopeH p
-        let ctx' = addContext ValueNat ctx
-        bs <- rsort_ ts' (addContext ValueNat ctx) p'
+        let pp   = fromScopeH p
+        (pp', bs) <- rsort_ ts' (addContext ValueNat ctx) pp
+        let p' = toScope pp'
 
         case rule as bs of
             Nothing -> throwErr $ NoRule (ppp0 as) (ppp0 bs) ts
             Just _  -> pure ()
 
+        z' <- rcheck_ ts' ctx z $ instantiate1 ValueNatZ p'
+        s' <- rcheck_ ts' ctx s $ ValuePi "l" ValueNat $ toScope $
+            instantiate1 (pure (B "l")) (fmap F p') ~>
+            instantiate1 (ValueNatS (pure (B "l"))) (fmap F p')
 
-        let p'' = toScope $ eval_ ctx' p' (ValueSort bs)
-
-        rcheck_ ts' ctx z $ instantiate1 ValueNatZ p''
-        rcheck_ ts' ctx s $ ValuePi "l" ValueNat $ toScope $
-            instantiate1 (pure (B "l")) (fmap F p'') ~>
-            instantiate1 (ValueNatS (pure (B "l"))) (fmap F p'')
-
-        return $ instantiate1 (eval_ ctx n ValueNat) p''
+        return (valueNatElim x p' z' s' n', instantiate1 n' p')
 
 #ifdef LANGUAGE_PTS_HAS_NAT_PRIM
     TermPlus x y -> do
-        rcheck_ ts' ctx x ValueNat
-        rcheck_ ts' ctx y ValueNat
-        return ValueNat
+        x' <- rcheck_ ts' ctx x ValueNat
+        y' <- rcheck_ ts' ctx y ValueNat
+        return (valuePlus x' y', ValueNat)
 
     TermTimes x y -> do
-        rcheck_ ts' ctx x ValueNat
-        rcheck_ ts' ctx y ValueNat
-        return ValueNat
+        x' <- rcheck_ ts' ctx x ValueNat
+        y' <- rcheck_ ts' ctx y ValueNat
+        return (valueTimes x' y', ValueNat)
 #endif
 #endif
   where
@@ -172,12 +163,12 @@ rsort_
     => [PrettyM Doc]
     -> (a -> Maybe (ValueIntro err s a))
     -> TermInf s a
-    -> m s
+    -> m (ValueIntro err s a, s)
 rsort_ ts ctx term = do
-    t <- rtype_ ts ctx term
+    (x, t) <- rtype_ ts ctx term
     case t of
-        ValueSort s' -> return s'
-        _            -> throwErr $ SomeErr "not a sort"
+        ValueSort s -> return (x, s)
+        _           -> throwErr $ SomeErr "not a sort"
 
 -------------------------------------------------------------------------------
 -- Checking
@@ -189,17 +180,20 @@ rcheck_
     -> (a -> Maybe (ValueIntro err s a))
     -> TermChk s a
     -> ValueIntro err s a
-    -> m ()
+    -> m (ValueIntro err s a)
 rcheck_ ts ctx term t = case term of
     Inf u -> do
-        t' <- rtype_ ts' ctx u
-        unless (t == t') $ throwErr $ TypeMismatch (ppp0 t) (ppp0 t') (ppp0 u) ts
+        (u', t') <- rtype_ ts' ctx u
+        if t == t'
+        then return u'
+        else throwErr $ TypeMismatch (ppp0 t) (ppp0 t') (ppp0 u) ts
 
-    Lam _n e -> case t of
+    Lam x e -> case t of
         ValuePi _ a b -> do
-            let e' = fromScopeH e
-            let b' = fromScope b
-            rcheck_ ts' (addContext a ctx) e' b'
+            let ee = fromScopeH e
+            let bb = fromScope b
+            bb' <- rcheck_ ts' (addContext a ctx) ee bb
+            return (ValueLam x a (toScope bb'))
         _ -> throwErr $ LambdaNotPi (ppp0 t) (ppp0 term) ts
   where
     ts' :: [PrettyM Doc]
