@@ -242,14 +242,13 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
         let typeCtx  n' = terms ^? ix n' . _2
         let valueCtx n' = maybe (return n') id $ terms ^? ix n' . _1
 
-        ts <- type_ typeCtx t >>= \s -> case s of
+        let t' = t >>= valueCtx
+        ts <- type_ typeCtx t' >>= \s -> case s of
             ValueSort s' -> return s'
             _            -> throwErr "type of 'type' is not a sort"
+        t'' <- errorlessValueIntro $ eval_ typeCtx t' (ValueSort ts)
 
         let x' = x >>== valueCtx
-        let t' = t >>= valueCtx
-
-        t'' <- errorlessValueIntro $ eval_ typeCtx t' (ValueSort ts)
         check_ typeCtx x' t''
 
         -- putPP $ "checked type" </> ppp0 t'
