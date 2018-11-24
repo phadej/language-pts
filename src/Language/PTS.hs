@@ -27,7 +27,6 @@ module Language.PTS (
     module Language.PTS.Error,
     -- * type-check, eval, quote
     module Language.PTS.Check,
-    module Language.PTS.Eval,
     module Language.PTS.Quote,
     -- * PTS specification
     module Language.PTS.Specification,
@@ -42,7 +41,6 @@ module Language.PTS (
 
 import Language.PTS.Check
 import Language.PTS.Error
-import Language.PTS.Eval
 import Language.PTS.Pretty
 import Language.PTS.Quote
 import Language.PTS.Script
@@ -60,17 +58,19 @@ import qualified Text.PrettyPrint.Compact as PP
 -- >>> demo_ basicCtx $ systemfIdentity @@ "Bool" @@ "True"
 -- (λ a x → x : ∀ a → a → a) Bool True ↪ True : Bool
 demo_ :: forall s. Specification s => (Sym -> Maybe (Value s)) -> Term s -> IO ()
-demo_ ctx term = case type_ ctx term >>= errorlessValueIntro of
+demo_ ctx term = case termAndType of
     Left err -> prettyPut (err :: Err)
-    Right (t :: Value s) -> case errorlessValueIntro $ eval_ ctx term t of
-        Left err -> prettyPut (err :: Err)
-        -- we quote term before printing (strips type lambda type annotations)
-        Right v  -> prettyPutWith opts $ pppHang 4
+    -- we quote term before printing (strips type lambda type annotations)
+    Right (x, t) -> prettyPutWith opts $ pppHang 4
             (ppp0 term)
-            (pppChar '↪' <+> ppp0 (quote_ v) </> pppChar ':' <+> ppp0 t)
-
+            (pppChar '↪' <+> ppp0 (quote_ x) </> pppChar ':' <+> ppp0 (quote_ t))
   where
     opts = PP.defaultOptions { PP.optsPageWidth = 60 }
+    termAndType = do
+        (x, t) <- type_ ctx term
+        x' <- errorlessValueIntro x
+        t' <- errorlessValueIntro t
+        return (x', t')
 
 -- $setup
 -- >>> :set -XOverloadedStrings

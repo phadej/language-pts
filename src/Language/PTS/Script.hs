@@ -26,7 +26,6 @@ import qualified Text.PrettyPrint.Compact as PP
 import Language.PTS.Bound
 import Language.PTS.Check
 import Language.PTS.Error
-import Language.PTS.Eval
 import Language.PTS.Pretty
 import Language.PTS.Quote
 import Language.PTS.Specification
@@ -243,13 +242,13 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
         let valueCtx n' = maybe (return n') id $ terms ^? ix n' . _1
 
         let t' = t >>= valueCtx
-        ts <- type_ typeCtx t' >>= \s -> case s of
-            ValueSort s' -> return s'
-            _            -> throwErr "type of 'type' is not a sort"
-        t'' <- errorlessValueIntro $ eval_ typeCtx t' (ValueSort ts)
+        (t'', tt) <- type_ typeCtx t'
+        case tt of 
+            ValueSort _ -> return ()
+            _           -> throwErr "type of 'type' is not a sort"
 
         let x' = x >>== valueCtx
-        check_ typeCtx x' t''
+        _ <- check_ typeCtx x' t''
 
         -- putPP $ "checked type" </> ppp0 t'
         sTerms . at n ?= (Ann x' t', t'')
@@ -277,10 +276,9 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
         let valueCtx n' = maybe (return n') id $ terms ^? ix n' . _1
 
         let x' = x >>= valueCtx
-        t <- type_ typeCtx x'
-        t' <- errorlessValueIntro t
+        (_, t) <- type_ typeCtx x'
 
-        sTerms . at n ?= (x', t')
+        sTerms . at n ?= (x', t)
         sDefinitions %= ((n, x) :)
 
     dumpDefs_ = do
@@ -297,9 +295,9 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
             let typeCtx  n' = terms ^? ix n' . _2
             let valueCtx n' = maybe (return n') id $ terms ^? ix n' . _1
 
-            t <- type_ typeCtx x
-            t' <- errorlessValueIntro t
-            x' <- errorlessValueIntro $ eval_ typeCtx (x >>= valueCtx) t
+            (x', t') <- type_ typeCtx (x >>= valueCtx)
+            x'' <- errorlessValueIntro x'
+            t'' <- errorlessValueIntro t'
             -- quote term back!
-            putPP $ pppChar '↪' <+> ppp0 (quote_ (x' :: ValueIntro Void s Sym))
-                </> pppChar ':' <+> ppp0 (quote_ t')
+            putPP $ pppChar '↪' <+> ppp0 (quote_ (x'' :: ValueIntro Void s Sym))
+                </> pppChar ':' <+> ppp0 (quote_ (t'' :: ValueIntro Void s Sym))
