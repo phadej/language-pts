@@ -183,29 +183,6 @@ rsort_ ts ctx term = do
 -- Checking
 -------------------------------------------------------------------------------
 
-{-
--- | Check that term is a of right sort type.
---
--- More special version of 'rcheck_'.
-rcheckSort_
-    :: (Eq a, Show a, PrettyPrec a, Specification s, MonadErr m, PrettyPrec err, AsErr err)
-    => [PrettyM Doc]
-    -> (a -> Maybe (ValueIntro err s a))
-    -> TermChk s a
-    -> s
-    -> m ()
-rcheckSort_ ts ctx term s = case term of
-    Inf u -> do
-        t' <- rtype_ ts' ctx u
-        case t' of
-            ValueSort s' -> unless (s == s') $ throwErr $ SortMismatch (ppp0 s) (ppp0 s') (ppp0 u) ts
-            _            -> throwErr $ SomeErr "not a sort"
-    Lam _ _ -> throwErr $ SomeErr "Lambda cannot have sort type"
-  where
-    ts' :: [PrettyM Doc]
-    ts' = ppp0 term : ts
--}
-
 rcheck_
     :: (Eq a, Show a, PrettyPrec a, Specification s, MonadErr m, PrettyPrec err, AsErr err)
     => [PrettyM Doc] -- ^ terms we walked through, for error reporting
