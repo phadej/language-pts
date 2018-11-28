@@ -61,6 +61,11 @@ quoteIntro (ValueSigma x a b) = Inf $ Sigma x (unsafeChkToInf (quote_ a)) (quote
 quoteIntro (ValuePair x y)    = Pair (quoteIntro x) (quoteIntro y)
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+quoteIntro (ValueEquality a x y) = Inf $ Equality (unsafeChkToInf (quote_ a)) (quoteIntro x) (quoteIntro y)
+quoteIntro ValueRefl = Refl
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
 quoteIntro ValueBool  = Inf TermBool
 quoteIntro ValueTrue  = Inf TermTrue

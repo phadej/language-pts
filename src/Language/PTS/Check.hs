@@ -82,6 +82,14 @@ rtype_ ts ctx term = case term of
             Just cs -> return (ValueSigma x a' (toScope b'), ValueSort cs)
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    Equality a x y -> do
+        (a', as) <- rsort_ ts' ctx a
+        x' <- rcheck_ ts' ctx x a'
+        y' <- rcheck_ ts' ctx y a'
+        return (ValueEquality a' x' y', ValueSort as)
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     TermBool   -> return (ValueBool, ValueSort typeSort)
     TermTrue   -> return (ValueTrue, ValueBool)
@@ -225,6 +233,15 @@ rcheck_ ts ctx term t = case term of
 
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    Refl -> case t of
+        ValueEquality a x y ->
+            if x == y
+            then return ValueRefl
+            else throwErr $ NonEqual (ppp0 x) (ppp0 y) (ppp0 a) ts
+        _ -> throwErr $ ReflNotEquality (ppp0 t) ts
+#endif
+
   where
     ts' :: [PrettyM Doc]
     ts' = ppp0 term : ts
@@ -237,7 +254,7 @@ addContext
 addContext x _ (B _) = Just (F <$> x)
 addContext _ f (F x) = fmap F <$> f x
 
-
+#ifdef LANGUAGE_PTS_HAS_SIGMA
 addContext2
     :: ValueIntro err s a
     -> Scope IrrSym (ValueIntro err s) a
@@ -255,3 +272,4 @@ unwrap :: Var IrrSym (Var IrrSym a) -> Var IrrSym2 a
 unwrap (B (IrrSym x))     = B (IrrSym2 x)
 unwrap (F (B (IrrSym y))) = B (IrrSym1 y)
 unwrap (F (F z))          = F z
+#endif

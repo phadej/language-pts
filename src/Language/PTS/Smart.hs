@@ -74,20 +74,36 @@ class CanPi u v | v -> u where
     -- \]
     (~>) :: (Specification s) => u s a -> u s a -> v s a
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    sigma_ :: Sym -> u s Sym -> u s Sym -> v s Sym
+#endif
+
 instance CanPi TermInf TermInf where
     pi_ n a b = Pi (IrrSym n) a (abstract1HSym n b)
     a ~> b =
         Pi (IrrSym "_") a (liftH b)
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    sigma_ n a b = Sigma (IrrSym n) a (abstract1HSym n b)
+#endif
+
 instance CanPi TermInf TermChk where
     pi_ n a b = Inf (Pi (IrrSym n)   a (abstract1HSym n b))
     a ~> b    = Inf (Pi (IrrSym "_") a (liftH b))
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    sigma_ n a b = Inf (Sigma (IrrSym n) a (abstract1HSym n b))
+#endif
 
 instance CanPi (ValueIntro err) (ValueIntro err) where
     pi_ n a = ValuePi (IrrSym n) a . abstract1Sym n
     -- fix me:
     a ~> b =
         ValuePi (IrrSym "_") a (liftS b)
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    sigma_ n a = ValueSigma (IrrSym n) a . abstract1Sym n
+#endif
 
 -- | Polymorphic, rank-1 types.
 --

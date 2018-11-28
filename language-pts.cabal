@@ -33,6 +33,16 @@ source-repository head
   type: git
   location: https://github.com/phadej/language-pts
 
+flag sigma
+  description: Add Sigma (dependent pair) type.
+  manual:  True
+  default: False
+
+flag eq
+  description: Add Equality type.
+  manual:  True
+  default: False
+
 flag bool
   description: add @Bool@ combinators to the type-system.
   manual:  True
@@ -50,11 +60,6 @@ flag nat
 
 flag nat-prim
   description: Add @Nat@ primitives, like @plus@ which reduce more aggressively.
-  manual:  True
-  default: False
-
-flag sigma
-  description: Add sigma (dependent pair) type.
   manual:  True
   default: False
 
@@ -87,6 +92,9 @@ library
 
   if flag(sigma) 
     cpp-options: -DLANGUAGE_PTS_HAS_SIGMA
+
+  if flag(eq) 
+    cpp-options: -DLANGUAGE_PTS_HAS_EQUALITY
 
   if flag(eta)
     cpp-options: -DLANGUAGE_PTS_HAS_ETA
@@ -128,6 +136,7 @@ library
     Language.PTS.Examples.Booleans
     Language.PTS.Examples.Contexts
     Language.PTS.Examples.Errors
+    Language.PTS.Examples.Equality
     Language.PTS.Examples.Hurkens
     Language.PTS.Examples.Identity
     Language.PTS.Examples.Naturals

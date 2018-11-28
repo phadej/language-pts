@@ -115,6 +115,14 @@ data ValueIntro err s a
       -- ^ (Dependent) pair constructor
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    | ValueEquality (ValueIntro err s a) (ValueIntro err s a) (ValueIntro err s a)
+      -- ^ Equality
+
+    | ValueRefl
+      -- ^ Equality witness
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     | ValueBool
       -- ^ Booleans.
@@ -218,6 +226,16 @@ instance (PrettyPrec err,  AsErr err, Specification s) => Monad (ValueIntro err 
 
     ValueErr err   >>= _ = ValueErr err
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    ValueSigma x a b >>= k = ValueSigma x (a >>= k) (b >>>= k)
+    ValuePair a b    >>= k = ValuePair (a >>= k) (b >>= k)
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    ValueEquality a x y >>= k = ValueEquality (a >>= k) (x >>= k) (y >>= k)
+    ValueRefl           >>= _ = ValueRefl
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     ValueBool       >>= _ = ValueBool
     ValueTrue       >>= _ = ValueTrue
@@ -228,11 +246,6 @@ instance (PrettyPrec err,  AsErr err, Specification s) => Monad (ValueIntro err 
     ValueNat       >>= _ = ValueNat
     ValueNatZ      >>= _ = ValueNatZ
     ValueNatS n    >>= k = ValueNatS (n >>= k)
-#endif
-
-#ifdef LANGUAGE_PTS_HAS_SIGMA
-    ValueSigma x a b >>= k = ValueSigma x (a >>= k) (b >>>= k)
-    ValuePair a b    >>= k = ValuePair (a >>= k) (b >>= k)
 #endif
 
 
@@ -341,6 +354,16 @@ valueBind (ValueLam n t b) k = ValueLam n (valueBind t k) (b >>>= ValueCoerce . 
 valueBind (ValuePi n a b)  k = ValuePi n (a >>= ValueCoerce . k) (b >>>= ValueCoerce . k)
 valueBind (ValueErr err)   _ = ValueErr err
 
+#if LANGUAGE_PTS_HAS_SIGMA
+valueBind (ValueSigma x a b) k = ValueSigma x (a >>= ValueCoerce . k) (b >>>= ValueCoerce . k)
+valueBind (ValuePair a b)    k = ValuePair (a >>= ValueCoerce . k) (b >>= ValueCoerce . k)
+#endif
+
+#if LANGUAGE_PTS_HAS_EQUALITY
+valueBind (ValueEquality a x y) k = ValueEquality (a >>= ValueCoerce . k) (x >>= ValueCoerce . k) (y >>= ValueCoerce . k)
+valueBind ValueRefl             _ = ValueRefl
+#endif
+
 #if LANGUAGE_PTS_HAS_BOOL
 valueBind ValueBool        _ = ValueBool
 valueBind ValueTrue        _ = ValueTrue
@@ -357,10 +380,7 @@ valueBind ValueNatZ       _ = ValueNatZ
 valueBind (ValueNatS n)   k = ValueNatS (n >>= ValueCoerce . k)
 #endif
 
-#if LANGUAGE_PTS_HAS_SIGMA
-valueBind (ValueSigma x a b) k = ValueSigma x (a >>= ValueCoerce . k) (b >>>= ValueCoerce . k)
-valueBind (ValuePair a b)    k = ValuePair (a >>= ValueCoerce . k) (b >>= ValueCoerce . k)
-#endif
+
 
 pureValueIntro :: a -> ValueIntro err s a
 pureValueIntro = ValueCoerce . pureValueElim
@@ -526,6 +546,24 @@ traverseErrValueIntro f (ValuePi n a b)   = ValuePi n
     <$> traverseErrValueIntro f a
     <*> transverseScope (traverseErrValueIntro f) b
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+traverseErrValueIntro f (ValueSigma x a b) = ValueSigma x
+    <$> traverseErrValueIntro f a
+    <*> transverseScope (traverseErrValueIntro f) b
+traverseErrValueIntro f (ValuePair a b) = ValuePair
+    <$> traverseErrValueIntro f a
+    <*> traverseErrValueIntro f b
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+traverseErrValueIntro f (ValueEquality a x y)  = ValueEquality
+    <$> traverseErrValueIntro f a
+    <*> traverseErrValueIntro f x
+    <*> traverseErrValueIntro f y
+
+traverseErrValueIntro _ ValueRefl = pure ValueRefl
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
 traverseErrValueIntro _ ValueBool      = pure ValueBool
 traverseErrValueIntro _ ValueTrue      = pure ValueTrue
@@ -538,14 +576,6 @@ traverseErrValueIntro _ ValueNatZ     = pure ValueNatZ
 traverseErrValueIntro f (ValueNatS n) = ValueNatS <$> traverseErrValueIntro f n
 #endif
 
-#ifdef LANGUAGE_PTS_HAS_SIGMA
-traverseErrValueIntro f (ValueSigma x a b) = ValueSigma x
-    <$> traverseErrValueIntro f a
-    <*> transverseScope (traverseErrValueIntro f) b
-traverseErrValueIntro f (ValuePair a b) = ValuePair
-    <$> traverseErrValueIntro f a
-    <*> traverseErrValueIntro f b
-#endif
 
 traverseErrValueElim :: Applicative f => (err -> f err') -> ValueElim err s a -> f (ValueElim err' s a)
 traverseErrValueElim _ (ValueVar a)   = pure (ValueVar a)
@@ -633,6 +663,28 @@ instance (Show s, Show err) => Show1 (ValueIntro err s) where
         showsPrec
         "ValueErr" d err
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    liftShowsPrec sp sl d (ValueSigma x y z) = showsTernaryWith
+        showsPrec
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "ValueSigma" d x y z
+    liftShowsPrec sp sl d (ValuePair x y) = showsBinaryWith
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "ValuePair" d x y
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    liftShowsPrec sp sl d (ValueEquality x y z) = showsTernaryWith
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "ValueEquality" d x y z
+        
+    liftShowsPrec _ _ _ ValueRefl = showString "ValueRefl"
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     liftShowsPrec _  _  _ ValueBool      = showString "ValueBool"
     liftShowsPrec _  _  _ ValueTrue      = showString "ValueTrue"
@@ -647,17 +699,6 @@ instance (Show s, Show err) => Show1 (ValueIntro err s) where
         "ValueNatS" d x
 #endif
 
-#ifdef LANGUAGE_PTS_HAS_SIGMA
-    liftShowsPrec sp sl d (ValueSigma x y z) = showsTernaryWith
-        showsPrec
-        (liftShowsPrec sp sl)
-        (liftShowsPrec sp sl)
-        "ValueSigma" d x y z
-    liftShowsPrec sp sl d (ValuePair x y) = showsBinaryWith
-        (liftShowsPrec sp sl)
-        (liftShowsPrec sp sl)
-        "ValuePair" d x y
-#endif
 
 instance (Show s, Show err) => Show1 (ValueElim err s) where
     liftShowsPrec sp _ d (ValueVar x) =
@@ -737,6 +778,25 @@ instance Eq s => Eq1 (ValueIntro err s) where
     -- Errors are inequal
     liftEq _  (ValueErr _) (ValueErr _) = False
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    liftEq eq (ValueSigma _x a b) (ValueSigma _x' a' b') =
+        liftEq eq a a' &&
+        liftEq eq b b'
+
+    liftEq eq (ValuePair a b) (ValuePair a' b') =
+        liftEq eq a a' &&
+        liftEq eq b b'
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    liftEq  eq (ValueEquality a x y) (ValueEquality a' x' y') =
+        liftEq eq a a' &&
+        liftEq eq x x' &&
+        liftEq eq y y'
+
+    liftEq _eq ValueRefl ValueRefl = True
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     liftEq _  ValueBool      ValueBool       = True
     liftEq _  ValueTrue      ValueTrue       = True
@@ -749,22 +809,19 @@ instance Eq s => Eq1 (ValueIntro err s) where
     liftEq eq (ValueNatS n) (ValueNatS n') = liftEq eq n n'
 #endif
 
-#ifdef LANGUAGE_PTS_HAS_SIGMA
-    liftEq eq (ValueSigma _x a b) (ValueSigma _x' a' b') =
-        liftEq eq a a' &&
-        liftEq eq b b'
-
-    liftEq eq (ValuePair a b) (ValuePair a' b') =
-        liftEq eq a a' &&
-        liftEq eq b b'
-#endif
-
     -- catch all case: False
     liftEq _eq _ _ = False
 
 instance Eq s => Eq1 (ValueElim err s) where
     liftEq eq (ValueVar a)   (ValueVar a')    = eq a a'
     liftEq eq (ValueApp f x) (ValueApp f' x') = liftEq eq f f' && liftEq eq x x'
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    liftEq eq (ValueMatch p _ _ b) (ValueMatch p' _ _ b') =
+        liftEq eq p p' &&
+        liftEq eq b b'
+#endif
+
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
     liftEq eq (ValueBoolElim _ p t f b) (ValueBoolElim _ p' t' f' b') =
@@ -797,12 +854,6 @@ instance Eq s => Eq1 (ValueElim err s) where
         liftEq eq y y'
 #endif
 #endif
-
-#ifdef LANGUAGE_PTS_HAS_SIGMA
-    liftEq eq (ValueMatch p _ _ b) (ValueMatch p' _ _ b') =
-        liftEq eq p p' &&
-        liftEq eq b b'
-#endif
         
     -- catch all case: False
     liftEq _eq _ _ = False
@@ -823,6 +874,17 @@ pppIntro d (ValueSort s)   = ppp d s
 pppIntro d (ValueErr e)    = ppp d e
 pppIntro d v@ValueLam {}   = uncurry (pppLambda d) =<< pppPeelLam v
 pppIntro d v@ValuePi {}    = uncurry (pppPi d) =<< pppPeelPi v
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+pppIntro d (ValueEquality a x y) = pppApplication d
+    "Eq"
+    [ pppIntro PrecApp a
+    , pppIntro PrecApp x
+    , pppIntro PrecApp y
+    ]
+
+pppIntro _ ValueRefl = "refl"
+#endif
 
 #ifdef LANGUAGE_PTS_HAS_SIGMA
 -- TODO: non dependent case

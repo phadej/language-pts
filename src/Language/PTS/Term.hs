@@ -105,6 +105,21 @@ data TermInf s a
     | Sigma IrrSym (TermInf s a) (ScopeH IrrSym (TermInf s) (TermInf s) a)
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+      -- | Propositional equality
+      --
+      -- \[\frac
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\rho} \Rightarrow \color{darkred}{s}
+      --  \qquad \rho \leadsto \tau
+      --  \qquad \color{darkblue}\Gamma \vdash \color{darkgreen}{x} \Leftarrow \color{darkred}{\tau}
+      --  \qquad \color{darkblue}\Gamma \vdash \color{darkgreen}{y} \Leftarrow \color{darkred}{\tau}
+      -- }
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathsf{Eq}\;\rho\;x\;y} \Rightarrow \color{darkred}{s} }
+      -- \;\mathsf{Eq}
+      -- \]
+    | Equality (TermInf s a) (TermChk s a) (TermChk s a)
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     | TermBool
       -- ^ Booleans
@@ -259,7 +274,10 @@ data TermChk s a
       -- | Inferrable terms
       --
       -- \[\frac
-      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}x \Rightarrow \color{darkred}\tau }
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}x \Rightarrow \color{darkred}{\tau'}
+      --  \qquad
+      --  \tau \equiv \tau'
+      -- }
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}x \Leftarrow \color{darkred}\tau }
       -- \;\mathrm{C{\scriptstyle HK}}
       -- \]
@@ -279,11 +297,11 @@ data TermChk s a
       -- | Dependent pair
       --
       -- \[\frac
-      -- {\color{darkblue}\Gamma \vdash \color{\darkgreen}{x} \Leftarrow \color{darkred}{\tau}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{x} \Leftarrow \color{darkred}{\tau}
       -- \qquad
-      -- \color{darkblue}\Gamma \vdash \color{\darkgreen}{y} \Leftarrow \color{darkred}{\tau' [ x \mapsto \tau} ]
+      -- \color{darkblue}\Gamma \vdash \color{darkgreen}{y} \Leftarrow \color{darkred}{\tau' [ x \mapsto \tau} ]
       -- }
-      -- {\color{darkblue}\Gamma \vdash \color{\darkgreen}{\mathsf{pair}\;x\;y} \Leftarrow \color{darkred}{\sum (x : \tau) \to \tau'}}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathsf{pair}\;x\;y} \Leftarrow \color{darkred}{\sum (x : \tau) \to \tau'}}
       -- \]
     | Pair (TermChk s a) (TermChk s a)
 
@@ -293,14 +311,25 @@ data TermChk s a
       --
       -- \[\frac
       -- {
-      -- \color{darkblue}\Gamma \vdash \color{\darkgreen}p \Rightarrow \color{darkred}{\sum (z : \tau) \to \tau'}
+      -- \color{darkblue}\Gamma \vdash \color{darkgreen}p \Rightarrow \color{darkred}{\sum (z : \tau) \to \tau'}
       -- \qquad
       -- \color{darkblue}{\Gamma, x : \tau, y : \tau' [z \mapsto x]} \vdash b \Leftarrow \color{darkred}{\tau''}
       -- }
-      -- {\color{darkblue}\Gamma \vdash \color{\darkgreen}{\mathsf{match}\;p\;(\lambda\, x\, y \to b)} \Leftarrow \color{darkred}{\tau''}}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathsf{match}\;p\;(\lambda\, x\, y \to b)} \Leftarrow \color{darkred}{\tau''}}
       -- \]
     | Match (TermInf s a) IrrSym IrrSym (ScopeH IrrSym2 (TermChk s) (TermInf s) a)
 #endif
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+      -- | Witness or propositional equality
+      --
+      -- \[\frac
+      -- {x \equiv y}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathsf{refl}} \Leftarrow \color{darkred}{\mathsf{Eq}\;\tau\;x\;y}}
+      -- \]
+    | Refl
+#endif
+
   deriving (Functor, Foldable, Traversable)
 
 -------------------------------------------------------------------------------
@@ -336,6 +365,9 @@ instance Show s => Show1 (TermChk s) where
         "Match" d x y z w
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    liftShowsPrec _ _ _ Refl = showString "Refl"
+#endif
 
 instance Show s => Show1 (TermInf s) where
     liftShowsPrec sp _ d (Var x) = showsUnaryWith
@@ -366,6 +398,14 @@ instance Show s => Show1 (TermInf s) where
         "Sigma" d x y z
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    liftShowsPrec sp sl d (Equality x y z) = showsTernaryWith
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "Equality" d x y z
+#endif
+        
 #ifdef LANGUAGE_PTS_HAS_BOOL
     liftShowsPrec _  _  _ TermBool                 = showString "TermBool"
     liftShowsPrec _  _  _ TermTrue                 = showString "TermTrue"
@@ -434,6 +474,15 @@ pppInf d (Ann x t)   = pppAnnotation d (pppChk PrecAnn x) (pppInf PrecAnn t)
 
 #ifdef LANGUAGE_PTS_HAS_SIGMA
 pppInf d t@Sigma {} = uncurry (pppPi d) =<< pppPeelPi t
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+pppInf d (Equality a x y) = pppApplication d
+    "Eq"
+    [ pppInf PrecApp a
+    , pppChk PrecApp x
+    , pppChk PrecApp y
+    ]
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
@@ -555,6 +604,10 @@ pppChk d (Match p x y b) = pppApplication d
     ]
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+pppChk _ Refl = "refl"
+#endif
+
 instance (Specification s, PrettyPrec a) => PrettyPrec (TermInf s a) where ppp = ppp1
 instance (Specification s, PrettyPrec a) => PrettyPrec (TermChk s a)  where ppp = ppp1
 
@@ -577,6 +630,10 @@ instance Monad (TermInf s) where
 
 #ifdef LANGUAGE_PTS_HAS_SIGMA
     Sigma x a b >>= f =  Sigma x (a >>= f) (b >>== f)
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    Equality a x y >>= f = Equality (a >>= f) (x >>== f) (y >>== f)
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
@@ -617,6 +674,10 @@ instance Module (TermChk s) (TermInf s) where
 #ifdef LANGUAGE_PTS_HAS_SIGMA
     Pair x y      >>== k = Pair (x >>== k) (y >>== k)
     Match p x y b >>== k = Match (p >>= k) x y (b >>== k)
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    Refl >>== _ = Refl
 #endif
 
 instance Module (TermInf s) (TermInf s) where
