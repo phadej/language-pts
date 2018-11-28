@@ -97,6 +97,9 @@ instance CanPi (ValueIntro err) (ValueIntro err) where
 forall_ :: (CanPi u v, CanSort u, Specification s) => Sym -> u s Sym -> v s Sym
 forall_ a = pi_ a (sort_ typeSort)
 
+foralls_ :: (CanPi u u, CanSort u, Specification s) => [Sym] -> u s Sym -> u s Sym
+foralls_ as b = foldr forall_ b as
+
 -------------------------------------------------------------------------------
 -- Sort
 -------------------------------------------------------------------------------

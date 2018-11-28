@@ -322,4 +322,3 @@ naturalsPrimScript = do
 -- >>> :seti -XOverloadedStrings -XTypeApplications
 -- >>> import Language.PTS.Pretty
 -- >>> import Language.PTS.Systems
-

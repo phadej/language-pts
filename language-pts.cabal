@@ -53,6 +53,11 @@ flag nat-prim
   manual:  True
   default: False
 
+flag sigma
+  description: Add sigma (dependent pair) type.
+  manual:  True
+  default: False
+
 flag eta
   description: Perform eta-conversion in @eval_@
   manual:  True
@@ -79,6 +84,9 @@ library
     cpp-options: -DLANGUAGE_PTS_HAS_NAT
     if flag(nat-prim)
       cpp-options: -DLANGUAGE_PTS_HAS_NAT_PRIM
+
+  if flag(sigma) 
+    cpp-options: -DLANGUAGE_PTS_HAS_SIGMA
 
   if flag(eta)
     cpp-options: -DLANGUAGE_PTS_HAS_ETA
@@ -123,6 +131,7 @@ library
     Language.PTS.Examples.Hurkens
     Language.PTS.Examples.Identity
     Language.PTS.Examples.Naturals
+    Language.PTS.Examples.Sigma
 
     Text.Show.Extras
 

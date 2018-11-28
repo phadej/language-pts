@@ -56,6 +56,11 @@ quoteIntro (ValueLam n _ b) = Lam n (quoteScope b)
 quoteIntro (ValuePi n a b)  = Inf $ Pi n (unsafeChkToInf (quote_ a)) (quoteScopeInf b)
 quoteIntro (ValueErr err)   = absurd err
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+quoteIntro (ValueSigma x a b) = Inf $ Sigma x (unsafeChkToInf (quote_ a)) (quoteScopeInf b)
+quoteIntro (ValuePair x y)    = Pair (quoteIntro x) (quoteIntro y)
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
 quoteIntro ValueBool  = Inf TermBool
 quoteIntro ValueTrue  = Inf TermTrue
@@ -75,6 +80,10 @@ unsafeChkToInf t       = Ann t (sort_ star_) -- this can be an `error`
 quoteElim :: Specification s => ValueElim Void s a -> TermInf s a
 quoteElim (ValueVar a)   = Var a
 quoteElim (ValueApp f x) = App (quoteElim f) (quote_ x)
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+quoteElim (ValueMatch _p _x _y _b) = error "quoteElim ValueMatch {}"
+#endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
 quoteElim (ValueBoolElim x p t f b) = TermBoolElim x
