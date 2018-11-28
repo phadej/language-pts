@@ -30,7 +30,7 @@ valueType_ ctx (ValueApp f x) = case valueType_ ctx f of
 valueType_ ctx (ValueMatch p _ _ _b) = case valueType_ ctx p of
     -- TODO
     ValueErr err -> ValueErr err
-    _pt          -> ValueErr $ review _Err $ SomeErr "not sigma" -- TODO
+    pt           -> ValueErr $ review _Err $ NotAPair (ppp0 pt) (ppp0 p) []
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL

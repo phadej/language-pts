@@ -211,7 +211,7 @@ rcheck_ ts ctx term t = case term of
             x' <- rcheck_ ts' ctx x a
             y' <- rcheck_ ts' ctx y (instantiate1 x' b)
             return (ValuePair x' y')
-        _ -> throwErr $ SomeErr "not sigma" -- TODO
+        _ -> throwErr $ PairNotSigma (ppp0 t) (ppp0 term) ts
 
     Match p x y e -> do
         (p', pt) <- rtype_ ts' ctx p
@@ -221,7 +221,7 @@ rcheck_ ts ctx term t = case term of
                 let ctx' = addContext2 a b ctx
                 ee' <- rcheck_ ts' ctx' (fmap wrap ee) (fmap (F . F) t)
                 return (valueMatch p' x y (toScope (fmap unwrap ee')))
-            _ -> throwErr $ SomeErr "not sigma"
+            _ -> throwErr $ NotAPair (ppp0 pt) (ppp0 p) ts
 
 #endif
 

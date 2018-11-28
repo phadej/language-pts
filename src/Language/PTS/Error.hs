@@ -72,6 +72,10 @@ data Err
       -- ^ type mismatch in function application
     | LambdaNotPi (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
       -- ^ Lambda is (annotated with) not a Pi-type
+    | PairNotSigma (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
+      -- ^ Pair is (annotated with) not a Sigma-type
+    | NotAPair (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
+      -- ^ Match on not a pair
     | NoRule (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
       -- ^ invalid function space
     | NotAFunction (PrettyM Doc) (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
@@ -110,6 +114,10 @@ instance PrettyPrec Err where
         [ "The lambda expression" <+> term <+> "doesn't have a Pi-type"
         , "Annotated with" <+> t
         ]
+    ppp _ (PairNotSigma t term ctx)        = pppError ctx
+        [ "The pair expression" <+> term <+> "doesn't have a Sigma-type"
+        , "Annotated with" <+> t
+        ]
     ppp _ (NoRule s1 s2 ctx)               = pppError ctx
         [ "No PTS Rule (" <> s1 <> "," <> s2 <> ",-)"
         ]
@@ -117,6 +125,10 @@ instance PrettyPrec Err where
         [ "Couldn't match actual type" <+> t <+> "with a function type"
         , "In the application of" <+> f
         , "to the value" <+> x
+        ]
+    ppp _ (NotAPair t p ctx)               = pppError ctx
+        [ "Couldn't match actual type" <+> t <+> "with a pair type"
+        , "In the match on" <+> p
         ]
     ppp _ (SortWithoutAxiom s ctx)         = pppError ctx
         [ "Type-less sort" <+> s <+> "(no axiom exist)"
