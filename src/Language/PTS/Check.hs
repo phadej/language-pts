@@ -73,6 +73,15 @@ rtype_ ts ctx term = case term of
             Nothing -> throwErr $ NoRule (ppp0 as) (ppp0 bs) ts
             Just cs -> return (ValuePi x a' (toScope b'), ValueSort cs)
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    Sigma x a b -> do
+        (a', as) <- rsort_ ts' ctx a
+        (b', bs) <- rsort_ ts' (addContext a' ctx) (fromScopeH b)
+        case rule as bs of
+            Nothing -> throwErr $ NoRule (ppp0 as) (ppp0 bs) ts
+            Just cs -> return (ValueSigma x a' (toScope b'), ValueSort cs)
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     TermBool   -> return (ValueBool, ValueSort typeSort)
     TermTrue   -> return (ValueTrue, ValueBool)
@@ -195,6 +204,27 @@ rcheck_ ts ctx term t = case term of
             bb' <- rcheck_ ts' (addContext a ctx) ee bb
             return (ValueLam x a (toScope bb'))
         _ -> throwErr $ LambdaNotPi (ppp0 t) (ppp0 term) ts
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    Pair x y -> case t of
+        ValueSigma _  a b -> do
+            x' <- rcheck_ ts' ctx x a
+            y' <- rcheck_ ts' ctx y (instantiate1 x' b)
+            return (ValuePair x' y')
+        _ -> throwErr $ SomeErr "not sigma" -- TODO
+
+    Match p x y e -> do
+        (p', pt) <- rtype_ ts' ctx p
+        case pt of
+            ValueSigma _ a b -> do
+                let ee = fromScopeH e
+                let ctx' = addContext2 a b ctx
+                ee' <- rcheck_ ts' ctx' (fmap wrap ee) (fmap (F . F) t)
+                return (valueMatch p' x y (toScope (fmap unwrap ee')))
+            _ -> throwErr $ SomeErr "not sigma"
+
+#endif
+
   where
     ts' :: [PrettyM Doc]
     ts' = ppp0 term : ts
@@ -203,6 +233,25 @@ addContext
     :: ValueIntro err s a                  -- ^ x
     -> (a -> Maybe (ValueIntro err s a))   -- ^ context
     -> Var IrrSym a
-    -> Maybe (ValueIntro err s (Var b a))
+    -> Maybe (ValueIntro err s (Var IrrSym a))
 addContext x _ (B _) = Just (F <$> x)
 addContext _ f (F x) = fmap F <$> f x
+
+
+addContext2
+    :: ValueIntro err s a
+    -> Scope IrrSym (ValueIntro err s) a
+    -> (a -> Maybe (ValueIntro err s a))
+    -> Var IrrSym (Var IrrSym a)
+    -> Maybe (ValueIntro err s (Var IrrSym (Var IrrSym a)))
+addContext2 x y = addContext (fromScope y) . addContext x
+
+wrap :: Var IrrSym2 a -> Var IrrSym (Var IrrSym a)
+wrap (B (IrrSym2 x)) = B (IrrSym x)
+wrap (B (IrrSym1 y)) = F (B (IrrSym y))
+wrap (F z)           = F (F z)
+
+unwrap :: Var IrrSym (Var IrrSym a) -> Var IrrSym2 a
+unwrap (B (IrrSym x))     = B (IrrSym2 x)
+unwrap (F (B (IrrSym y))) = B (IrrSym1 y)
+unwrap (F (F z))          = F z

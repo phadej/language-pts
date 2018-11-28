@@ -8,7 +8,6 @@ module Language.PTS.Term (
     Term,
     TermInf (..),
     TermChk (..),
-    TermScope,
     ) where
 
 import Control.Monad        (ap)
@@ -32,8 +31,6 @@ import Numeric.Natural
 -- * Terms
 
 type Term s = TermInf s Sym
-
-type TermScope s = ScopeH IrrSym (TermChk s) (TermInf s)
 
 -- | Inferable terms, \(\mathit{Term}_\Rightarrow\).
 --
@@ -65,16 +62,16 @@ data TermInf s a
       --  \qquad
       --  \color{darkblue}{\Gamma, x : \tau} \vdash \color{darkgreen}{\rho'} \Rightarrow \color{darkred}{s'}
       --  \qquad
-      --  (s,s',s'') \in \mathcal{R} \qquad
+      --  (s,s',s'') \in \mathcal{R}
       -- }
-      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\Pi x : \rho.\rho'} \Rightarrow \color{darkred}{s''} }
-      -- \;\mathrm{P{\scriptstyle I}}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\prod (x : \rho) \to \rho'} \Rightarrow \color{darkred}{s''} }
+      -- \;\mathsf{Pi}
       -- \]
     | App (TermInf s a) (TermChk s a)
       -- ^ application
       --
       -- \[\frac
-      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{e}  \Rightarrow \color{darkred}{\Pi x : \tau. \tau'} \qquad
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{e}  \Rightarrow \color{darkred}{\prod (x : \tau) \to \tau'} \qquad
       --  \color{darkblue}\Gamma \vdash \color{darkgreen}{e'} \Leftarrow  \color{darkred}\tau \qquad
       --  \tau'[x \mapsto e'] \leadsto \tau''
       -- }
@@ -90,9 +87,27 @@ data TermInf s a
       -- \;\mathrm{A{\scriptstyle XIOM}}
       -- \]
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+      -- | Dependent pair
+      --
+      -- \[\frac
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\rho} \Rightarrow \color{darkred}s
+      --  \qquad
+      --  \rho \leadsto \tau
+      --  \qquad
+      --  \color{darkblue}{\Gamma, x : \tau} \vdash \color{darkgreen}{\rho'} \Rightarrow \color{darkred}{s'}
+      --  \qquad
+      --  (s,s',s'') \in \mathcal{R}
+      -- }
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\sum (x : \rho) \to \rho'} \Rightarrow \color{darkred}{s''} }
+      -- \;\mathsf{Sigma}
+      -- \]
+    | Sigma IrrSym (TermInf s a) (ScopeH IrrSym (TermInf s) (TermInf s) a)
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     | TermBool
-      -- ^ Booleans.
+      -- ^ Booleans
       --
       -- \[\frac
       -- {}
@@ -135,7 +150,7 @@ data TermInf s a
       --  \qquad
       --  P[x \mapsto b] \leadsto \sigma
       -- }}
-      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}\mathsf{-elim}\,(\lambda x \to P) \,t\,f\,b} \Rightarrow \color{darkred}{\sigma} }
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}\mathsf{-elim}\,(\lambda\, x \to P) \,t\,f\,b} \Rightarrow \color{darkred}{\sigma} }
     -- \]
     | TermBoolElim IrrSym (ScopeH IrrSym (TermInf s) (TermInf s) a) (TermChk s a) (TermChk s a) (TermChk s a)
 
@@ -195,7 +210,7 @@ data TermInf s a
       --  P[x \mapsto \mathsf{Zero}] \leadsto \tau \qquad
       --  \color{darkblue}\Gamma \vdash \color{darkgreen}z \Leftarrow \color{darkred}{\tau}
       --  \cr
-      --  \Pi l : \mathbb{N}. P[x \mapsto l] \to P[x \mapsto \mathsf{Succ}\,l]
+      --  \prod (l : \mathbb{N}) \to P[x \mapsto l] \to P[x \mapsto \mathsf{Succ}\,l]
       --  \leadsto \tau' \qquad
       --  \color{darkblue}\Gamma \vdash \color{darkgreen}s \Leftarrow \color{darkred}{\tau'}
       --  \cr
@@ -203,7 +218,7 @@ data TermInf s a
       --  \qquad
       --  P[x \mapsto n] \leadsto \sigma
       -- }}
-      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{N}\mathsf{-elim}\,(\lambda x \to p)\,z\,s\,n} \Rightarrow \color{darkred}{\sigma} }
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{N}\mathsf{-elim}\,(\lambda\, x \to p)\,z\,s\,n} \Rightarrow \color{darkred}{\sigma} }
     -- \]
     | TermNatElim IrrSym (ScopeH IrrSym (TermInf s) (TermInf s) a) (TermChk s a) (TermChk s a) (TermChk s a)
 
@@ -241,22 +256,51 @@ data TermInf s a
 --
 -- A type of the same kind as 'TermInf' to allow abstracting over them.
 data TermChk s a
-    = Inf (TermInf s a)
-      -- ^ inferrable terms
+      -- | Inferrable terms
       --
       -- \[\frac
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}x \Rightarrow \color{darkred}\tau }
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}x \Leftarrow \color{darkred}\tau }
       -- \;\mathrm{C{\scriptstyle HK}}
       -- \]
-    | Lam IrrSym (TermScope s a)
-      -- ^ lambda abstraction
+    = Inf (TermInf s a)
+
+      -- | Lambda abstraction
       --
       -- \[\frac
       -- {\color{darkblue}{\Gamma, x : \tau} \vdash \color{darkgreen}{e} \Leftarrow \color{darkred}{\tau'}}
-      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\lambda x \to e} \Leftarrow \color{darkred}{\Pi x : \tau. \tau'}}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\lambda\, x \to e} \Leftarrow \color{darkred}{\prod (x : \tau) \to \tau'}}
       -- \;\mathrm{L{\scriptstyle AM}}
       -- \]
+    | Lam IrrSym (ScopeH IrrSym (TermChk s) (TermInf s) a)
+
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+      -- | Dependent pair
+      --
+      -- \[\frac
+      -- {\color{darkblue}\Gamma \vdash \color{\darkgreen}{x} \Leftarrow \color{darkred}{\tau}
+      -- \qquad
+      -- \color{darkblue}\Gamma \vdash \color{\darkgreen}{y} \Leftarrow \color{darkred}{\tau' [ x \mapsto \tau} ]
+      -- }
+      -- {\color{darkblue}\Gamma \vdash \color{\darkgreen}{\mathsf{pair}\;x\;y} \Leftarrow \color{darkred}{\sum (x : \tau) \to \tau'}}
+      -- \]
+    | Pair (TermChk s a) (TermChk s a)
+
+      -- | Dependent pattern match
+      --
+      -- @match p (\x y -> b) ~ (\x y -> b) (fst p) (snd p)@
+      --
+      -- \[\frac
+      -- {
+      -- \color{darkblue}\Gamma \vdash \color{\darkgreen}p \Rightarrow \color{darkred}{\sum (z : \tau) \to \tau'}
+      -- \qquad
+      -- \color{darkblue}{\Gamma, x : \tau, y : \tau' [z \mapsto x]} \vdash b \Leftarrow \color{darkred}{\tau''}
+      -- }
+      -- {\color{darkblue}\Gamma \vdash \color{\darkgreen}{\mathsf{match}\;p\;(\lambda\, x\, y \to b)} \Leftarrow \color{darkred}{\tau''}}
+      -- \]
+    | Match (TermInf s a) IrrSym IrrSym (ScopeH IrrSym2 (TermChk s) (TermInf s) a)
+#endif
   deriving (Functor, Foldable, Traversable)
 
 -------------------------------------------------------------------------------
@@ -278,6 +322,21 @@ instance Show s => Show1 (TermChk s) where
         (liftShowsPrec sp sl)
         "Lam" d x y
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    liftShowsPrec sp sl d (Pair x y) = showsBinaryWith
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "Pair" d x y
+
+    liftShowsPrec sp sl d (Match x y z w) = showsQuadWith
+        (liftShowsPrec sp sl)
+        showsPrec
+        showsPrec
+        (liftShowsPrec sp sl)
+        "Match" d x y z w
+#endif
+
+
 instance Show s => Show1 (TermInf s) where
     liftShowsPrec sp _ d (Var x) = showsUnaryWith
         sp
@@ -298,6 +357,14 @@ instance Show s => Show1 (TermInf s) where
     liftShowsPrec _ _ d (Sort x) = showsUnaryWith
         showsPrec
         "Sort" d x
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    liftShowsPrec sp sl d (Sigma x y z) = showsTernaryWith
+        showsPrec
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "Sigma" d x y z
+#endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
     liftShowsPrec _  _  _ TermBool                 = showString "TermBool"
@@ -365,6 +432,10 @@ pppInf d (Ann x t'@Pi {}) =
     uncurry (pppAnnotationPi d (pppChk PrecAnn x)) =<< pppPeelPi t'
 pppInf d (Ann x t)   = pppAnnotation d (pppChk PrecAnn x) (pppInf PrecAnn t)
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+pppInf d t@Sigma {} = uncurry (pppPi d) =<< pppPeelPi t
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
 pppInf _ TermBool    = pppChar '𝔹'
 pppInf _ TermTrue    = pppText "true"
@@ -427,7 +498,22 @@ pppPeelPi (Pi n a b)
         pppScopedIrrSym n $ \nDoc -> do
             ~(xs, ys) <- pppPeelPi (instantiate1H (return nDoc) b)
             return (PPPi nDoc (pppInf PrecPi a) : xs, ys)
-
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+pppPeelPi (Sigma n a b)
+{-
+    | Just b' <- unusedScopeH b = do
+        ~(xs, ys) <- pppPeelPi b'
+        return (PPArrow (pppInf PrecPi a) : xs, ys)
+-}
+    | Sort a' <- a, a' == typeSort =
+        pppScopedIrrSym n $ \nDoc -> do
+            ~(xs, ys) <- pppPeelPi (instantiate1H (return nDoc) b)
+            return (PPExists nDoc : xs, ys)
+    | otherwise =
+        pppScopedIrrSym n $ \nDoc -> do
+            ~(xs, ys) <- pppPeelPi (instantiate1H (return nDoc) b)
+            return (PPSigma nDoc (pppInf PrecPi a) : xs, ys)
+#endif
 pppPeelPi t = return ([], pppInf PrecPi t)
 
 pppPeelApplication :: Specification s => TermInf s Doc -> (PrettyM Doc, [PrettyM Doc])
@@ -447,12 +533,27 @@ pppChk d (Inf x)  = pppInf d x
 pppChk d t@Lam {} = uncurry (pppLambda d) =<< pppPeelLam t
   where
     pppPeelLam :: TermChk s Doc -> PrettyM ([Doc], PrettyM Doc)
-    pppPeelLam (Inf x)   = do
-        x' <- pppInf PrecLambda x
-        return ([], return x')
     pppPeelLam (Lam n b) = pppScopedIrrSym n $ \nDoc -> do
         ~(xs, ys) <- pppPeelLam (instantiate1H (return nDoc) b)
         return (nDoc : xs, ys)
+    pppPeelLam x   = do
+        x' <- pppChk PrecLambda x
+        return ([], return x')
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+pppChk d (Pair x y) = pppApplication d
+    "pair"
+    [ pppChk PrecApp x
+    , pppChk PrecApp y
+    ]
+
+pppChk d (Match p x y b) = pppApplication d
+    (pppText "match")
+    [ pppInf PrecApp p
+    , pppScopedIrrSym x $ \xDoc -> pppScopedIrrSym y $ \yDoc ->
+        pppLambda PrecApp [xDoc, yDoc] $ pppChk PrecLambda $ instantiate2Hreturn xDoc yDoc b
+    ]
+#endif
 
 instance (Specification s, PrettyPrec a) => PrettyPrec (TermInf s a) where ppp = ppp1
 instance (Specification s, PrettyPrec a) => PrettyPrec (TermChk s a)  where ppp = ppp1
@@ -473,6 +574,10 @@ instance Monad (TermInf s) where
     Sort s   >>= _ = Sort s
     App u d  >>= f = App (u >>= f) (d >>== f)
     Pi n a b >>= f = Pi n (a >>= f) (b >>== f)
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    Sigma x a b >>= f =  Sigma x (a >>= f) (b >>== f)
+#endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
     TermBool               >>= _ = TermBool
@@ -508,6 +613,11 @@ instance Monad (TermInf s) where
 instance Module (TermChk s) (TermInf s) where
     Inf u   >>== k = Inf (u >>= k)
     Lam n b >>== k = Lam n (b >>== k)
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    Pair x y      >>== k = Pair (x >>== k) (y >>== k)
+    Match p x y b >>== k = Match (p >>= k) x y (b >>== k)
+#endif
 
 instance Module (TermInf s) (TermInf s) where
     (>>==) = (>>=)

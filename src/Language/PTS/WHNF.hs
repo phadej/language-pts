@@ -14,7 +14,7 @@ import Language.PTS.Smart
 -- >>> prettyPut $ whnf (lambdaStarIdentity @@ "Int" @@ "True" :: Term LambdaStar)
 -- True
 --
--- /TODO:/ @nat@ flag
+-- /TODO:/ Othen than App/Lam pairs
 class WHNF t where
     whnf :: t s a -> t s a
 
@@ -28,7 +28,7 @@ instance WHNF TermInf where
 
 instance WHNF TermChk where
     whnf (Inf u)  = Inf (whnf u)
-    whnf e@Lam {} = e
+    whnf e = e
 
 -- $setup
 -- >>> :set -XOverloadedStrings

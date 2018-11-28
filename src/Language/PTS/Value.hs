@@ -22,6 +22,10 @@ module Language.PTS.Value (
     errorlessValueIntro',
     errorlessValueElim,
     errorlessValueElim',
+#if LANGUAGE_PTS_HAS_SIGMA
+    -- * Paris
+    valueMatch,
+#endif
 #if LANGUAGE_PTS_HAS_BOOL
     -- * Booleans
     valueBoolElim,
@@ -103,6 +107,14 @@ data ValueIntro err s a
       -- {\color{darkblue}{\Gamma^\downarrow} \vdash \color{darkgreen}x : \color{darkred}{\tau\!\uparrow}}
       -- \]
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    | ValueSigma IrrSym (ValueIntro err s a) (Scope IrrSym (ValueIntro err s) a)
+      -- ^ Dependent pair (sum)
+
+    | ValuePair (ValueIntro err s a) (ValueIntro err s a)
+      -- ^ (Dependent) pair constructor
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     | ValueBool
       -- ^ Booleans.
@@ -122,9 +134,6 @@ data ValueIntro err s a
       -- ^ Nat successor
 #endif
 
---    | ValueN Natural
-
---    | ValueReturn (m (ValueIntro err s a))
   deriving (Functor, Foldable, Traversable)
 
 -- | 'ValueElim' is extracted from a hypothesis, \(A\!\downarrow\).
@@ -144,6 +153,15 @@ data ValueElim err s a
       -- \[ \frac{}
       -- {\color{darkblue}{\Gamma^\downarrow, x : \mathord{\tau\!\downarrow}} \vdash \color{darkgreen}x : \color{darkred}{\tau\!\downarrow}}
       -- \]
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    -- | Dependent pattern match on a pair.
+    --
+    -- @
+    -- match p (\x y -> b) ~ (\x y -> b) (fst p) (snd p)
+    -- @
+    | ValueMatch (ValueElim err s a) IrrSym IrrSym (Scope IrrSym2 (ValueIntro err s) a)
+#endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
     -- | Boolean elimination
@@ -212,7 +230,11 @@ instance (PrettyPrec err,  AsErr err, Specification s) => Monad (ValueIntro err 
     ValueNatS n    >>= k = ValueNatS (n >>= k)
 #endif
 
---    ValueN n >>= _ = ValueN n
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    ValueSigma x a b >>= k = ValueSigma x (a >>= k) (b >>>= k)
+    ValuePair a b    >>= k = ValuePair (a >>= k) (b >>= k)
+#endif
+
 
 valueAppBind
     :: (PrettyPrec err, AsErr err, Specification s)
@@ -243,6 +265,13 @@ valueAppBind (ValuePlus x y) k =
 valueAppBind (ValueTimes x y) k =
     valueTimes (valueAppBind x k) (valueAppBind y k)
 #endif
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+valueAppBind (ValueMatch p x y b) k = valueMatch
+    (valueAppBind p k)
+    x y
+    (b >>>= k)
 #endif
 
 #if LANGUAGE_PTS_HAS_FIX
@@ -288,6 +317,11 @@ instance (PrettyPrec err, AsErr err, Specification s) => Monad (ValueElim err s)
 #endif
 #endif
 
+#if LANGUAGE_PTS_HAS_SIGMA
+    ValueMatch p x y b >>= k = ValueMatch (p >>= k) x y
+        (toScope $ valueBind (fromScope b) $ unvar (return . B) (fmap F . k))
+#endif
+
 #if LANGUAGE_PTS_HAS_FIX
     ValueFix f >>= k = ValueFix (f >>= k)
 #endif
@@ -323,7 +357,10 @@ valueBind ValueNatZ       _ = ValueNatZ
 valueBind (ValueNatS n)   k = ValueNatS (n >>= ValueCoerce . k)
 #endif
 
--- valueBind (ValueN n) _ = ValueN n
+#if LANGUAGE_PTS_HAS_SIGMA
+valueBind (ValueSigma x a b) k = ValueSigma x (a >>= ValueCoerce . k) (b >>>= ValueCoerce . k)
+valueBind (ValuePair a b)    k = ValuePair (a >>= ValueCoerce . k) (b >>= ValueCoerce . k)
+#endif
 
 pureValueIntro :: a -> ValueIntro err s a
 pureValueIntro = ValueCoerce . pureValueElim
@@ -366,7 +403,8 @@ valueBoolElim x p t f = go where
     go ValueTrue       = t
     go ValueFalse      = f
     go (ValueErr err)  = ValueErr err
-    go b               = ValueErr $ review _Err $ ApplyPanic "𝔹-elim" $ ppp0 (void b)
+    go b               = ValueErr $ review _Err $
+        ApplyPanic "𝔹-elim" $ ppp0 x <+> ppp0 (void t) <+> ppp0 (void f) <+> ppp0 (void b)
 
 #if LANGUAGE_PTS_HAS_BOOL_PRIM
 valueAnd
@@ -451,6 +489,25 @@ valueTimes x y = ValueErr $ review _Err $ ApplyPanic "ℕ-times" $ ppp0 (void x,
 #endif
 
 -------------------------------------------------------------------------------
+-- Dependent pair
+-------------------------------------------------------------------------------
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+valueMatch
+    :: (Specification s, AsErr err, PrettyPrec err)
+    => ValueIntro err s a
+    -> IrrSym
+    -> IrrSym
+    -> Scope IrrSym2 (ValueIntro err s) a
+    -> ValueIntro err s a
+valueMatch (ValuePair a b) _ _ body = instantiate2 a b body
+valueMatch (ValueErr err)  _ _ _    = ValueErr err
+valueMatch (ValueCoerce p) x y body = ValueCoerce (ValueMatch p x y body)
+valueMatch p _ _ _                  = ValueErr $ review _Err $ ApplyPanic "match" $ ppp0 (void p)
+#endif
+
+
+-------------------------------------------------------------------------------
 -- Run values
 -------------------------------------------------------------------------------
 
@@ -466,8 +523,8 @@ traverseErrValueIntro f (ValueLam n t b)  = ValueLam n
     <$> traverseErrValueIntro f t
     <*> transverseScope (traverseErrValueIntro f) b
 traverseErrValueIntro f (ValuePi n a b)   = ValuePi n
-    <$> (traverseErrValueIntro f a)
-    <*> (fmap toScope $ traverseErrValueIntro f $ fromScope b)
+    <$> traverseErrValueIntro f a
+    <*> transverseScope (traverseErrValueIntro f) b
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
 traverseErrValueIntro _ ValueBool      = pure ValueBool
@@ -479,6 +536,15 @@ traverseErrValueIntro _ ValueFalse     = pure ValueFalse
 traverseErrValueIntro _ ValueNat      = pure ValueNat
 traverseErrValueIntro _ ValueNatZ     = pure ValueNatZ
 traverseErrValueIntro f (ValueNatS n) = ValueNatS <$> traverseErrValueIntro f n
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+traverseErrValueIntro f (ValueSigma x a b) = ValueSigma x
+    <$> traverseErrValueIntro f a
+    <*> transverseScope (traverseErrValueIntro f) b
+traverseErrValueIntro f (ValuePair a b) = ValuePair
+    <$> traverseErrValueIntro f a
+    <*> traverseErrValueIntro f b
 #endif
 
 traverseErrValueElim :: Applicative f => (err -> f err') -> ValueElim err s a -> f (ValueElim err' s a)
@@ -501,7 +567,7 @@ traverseErrValueElim g (ValueAnd x y) = ValueAnd
 
 #ifdef LANGUAGE_PTS_HAS_NAT
 traverseErrValueElim f (ValueNatElim x a z s n) = ValueNatElim x
-    <$> (fmap toScope $ traverseErrValueIntro f $ fromScope a)
+    <$> transverseScope (traverseErrValueIntro f) a
     <*> traverseErrValueIntro f z
     <*> traverseErrValueIntro f s
     <*> traverseErrValueElim  f n
@@ -515,6 +581,14 @@ traverseErrValueElim g (ValueTimes x y) = ValueTimes
     <$> traverseErrValueElim g x
     <*> traverseErrValueElim g y
 #endif
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+traverseErrValueElim g (ValueMatch p x y b) = ValueMatch
+    <$> traverseErrValueElim g p
+    <*> pure x
+    <*> pure y
+    <*> transverseScope (traverseErrValueIntro g) b
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_FIX
@@ -573,6 +647,18 @@ instance (Show s, Show err) => Show1 (ValueIntro err s) where
         "ValueNatS" d x
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    liftShowsPrec sp sl d (ValueSigma x y z) = showsTernaryWith
+        showsPrec
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "ValueSigma" d x y z
+    liftShowsPrec sp sl d (ValuePair x y) = showsBinaryWith
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "ValuePair" d x y
+#endif
+
 instance (Show s, Show err) => Show1 (ValueElim err s) where
     liftShowsPrec sp _ d (ValueVar x) =
         showsUnaryWith sp "ValueVar" d x
@@ -618,6 +704,15 @@ instance (Show s, Show err) => Show1 (ValueElim err s) where
 #endif
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    liftShowsPrec sp sl d (ValueMatch x y z w) = showsQuadWith
+        (liftShowsPrec sp sl)
+        showsPrec
+        showsPrec
+        (liftShowsPrec sp sl)
+        "ValueMatch" d x y z w
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_FIX
     liftShowsPrec sp sl d (ValueFix x) = showsUnaryWith
         (liftShowsPrec sp sl)
@@ -652,6 +747,16 @@ instance Eq s => Eq1 (ValueIntro err s) where
     liftEq _  ValueNat      ValueNat       = True
     liftEq _  ValueNatZ     ValueNatZ      = True
     liftEq eq (ValueNatS n) (ValueNatS n') = liftEq eq n n'
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    liftEq eq (ValueSigma _x a b) (ValueSigma _x' a' b') =
+        liftEq eq a a' &&
+        liftEq eq b b'
+
+    liftEq eq (ValuePair a b) (ValuePair a' b') =
+        liftEq eq a a' &&
+        liftEq eq b b'
 #endif
 
     -- catch all case: False
@@ -693,6 +798,12 @@ instance Eq s => Eq1 (ValueElim err s) where
 #endif
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+    liftEq eq (ValueMatch p _ _ b) (ValueMatch p' _ _ b') =
+        liftEq eq p p' &&
+        liftEq eq b b'
+#endif
+        
     -- catch all case: False
     liftEq _eq _ _ = False
 
@@ -713,6 +824,17 @@ pppIntro d (ValueErr e)    = ppp d e
 pppIntro d v@ValueLam {}   = uncurry (pppLambda d) =<< pppPeelLam v
 pppIntro d v@ValuePi {}    = uncurry (pppPi d) =<< pppPeelPi v
 
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+-- TODO: non dependent case
+pppIntro d v@ValueSigma {} = uncurry (pppPi d) =<< pppPeelPi v
+
+pppIntro d (ValuePair a b) = pppApplication d
+    "pair"
+    [ pppIntro PrecApp a
+    , pppIntro PrecApp b
+    ]
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
 pppIntro _ ValueBool  = pppChar '𝔹'
 pppIntro _ ValueTrue  = pppText "true"
@@ -728,6 +850,8 @@ pppIntro d (ValueNatS n)
         (pppChar 'S')
         [pppIntro PrecApp n]
 #endif
+
+
 
 pppPeelLam :: (Specification s, PrettyPrec err) => ValueIntro err s Doc -> PrettyM ([Doc], PrettyM Doc)
 pppPeelLam (ValueLam n t b) = pppScopedIrrSym n $ \nDoc -> do
@@ -749,6 +873,18 @@ pppPeelPi (ValuePi n a b)
         pppScopedIrrSym n $ \nDoc -> do
             ~(xs, ys) <- pppPeelPi (instantiate1return nDoc b)
             return (PPPi nDoc (pppIntro PrecPi a) : xs, ys)
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+pppPeelPi (ValueSigma n a b)
+    -- TODO: non-dependent product
+    | ValueSort a' <- a, a' == typeSort =
+        pppScopedIrrSym n $ \nDoc -> do
+            ~(xs, ys) <- pppPeelPi (instantiate1return nDoc b)
+            return (PPExists nDoc : xs, ys)
+    | otherwise =
+        pppScopedIrrSym n $ \nDoc -> do
+            ~(xs, ys) <- pppPeelPi (instantiate1return nDoc b)
+            return (PPSigma nDoc (pppIntro PrecPi a) : xs, ys)
+#endif
 pppPeelPi v = return ([], pppIntro PrecPi v)
 
 instance (Specification s, PrettyPrec err) => PrettyPrec1 (ValueElim err s) where
@@ -761,7 +897,7 @@ pppElim d t@ValueApp {} = uncurry (pppApplication d) (pppPeelApplication t)
 #ifdef LANGUAGE_PTS_HAS_BOOL
 pppElim d (ValueBoolElim x p t f b) = pppApplication d
     (pppText "𝔹-elim")
-    [ pppScopedIrrSym x (\xDoc -> pppLambda PrecApp [xDoc] $ pppIntro PrecLambda $ instantiate1return xDoc p)  -- TODO
+    [ pppScopedIrrSym x $ \xDoc -> pppLambda PrecApp [xDoc] $ pppIntro PrecLambda $ instantiate1return xDoc p  -- TODO
     , pppIntro PrecApp t
     , pppIntro PrecApp f
     , pppElim  PrecApp b
@@ -779,7 +915,7 @@ pppElim d (ValueAnd x y) = pppApplication d
 #ifdef LANGUAGE_PTS_HAS_NAT
 pppElim d (ValueNatElim x a z s n) = pppApplication d
     (pppText "ℕ-elim")
-    [  pppScopedIrrSym x (\xDoc -> pppLambda PrecApp [xDoc] $ pppIntro PrecLambda $ instantiate1return xDoc a)
+    [ pppScopedIrrSym x $ \xDoc -> pppLambda PrecApp [xDoc] $ pppIntro PrecLambda $ instantiate1return xDoc a
     , pppIntro PrecApp z
     , pppIntro PrecApp s
     , pppElim  PrecApp n
@@ -798,6 +934,16 @@ pppElim d (ValueTimes x y) = pppApplication d
     , pppElim PrecApp y
     ]
 #endif
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_SIGMA
+pppElim d (ValueMatch p x y b) = pppApplication d
+    (pppText "match")
+    [ pppElim PrecApp p
+    , pppScopedIrrSym x $ \xDoc -> pppScopedIrrSym y $ \yDoc ->
+        pppLambda PrecApp [xDoc, yDoc] $ pppIntro PrecLambda $ instantiate2return xDoc yDoc b
+    ]
+
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_FIX
@@ -824,40 +970,3 @@ valueIntroToNatural ValueNatZ     = Just 0
 valueIntroToNatural (ValueNatS n) = succ <$> valueIntroToNatural n
 valueIntroToNatural _             = Nothing
 #endif
-
--------------------------------------------------------------------------------
--- Extras
--------------------------------------------------------------------------------
-
-
-{-
--- | Like 'Bound.Scope.bindings' but don't look into 'ValueReturn'.
-bindings' :: Scope IrrSym (ValueIntro err s) a -> [Sym]
-bindings' (Scope e) = foldMapIntro f e where
-    f (B (Name n ())) = [n]
-    f _               = []
-
-foldMapIntro :: Monoid r => (a -> r) -> ValueIntro err s a -> r
-foldMapIntro _ (ValueSort _)               = mempty
-foldMapIntro f (ValueCoerce x)             = foldMapElim f x
-foldMapIntro f (ValueLam _ (Scope e))      =
-    (foldMapIntro . foldMap . foldMapIntro) f e
-foldMapIntro f (ValuePi _ a _ (Scope b) _) = mappend
-    (foldMapIntro f a)
-    ((foldMapIntro . foldMap . foldMapIntro) f b)
-
--- foldMapIntro _ (ValueReturn _)            = mempty
-
-foldMapElim :: Monoid r => (a -> r) -> ValueElim err s a -> r
-foldMapElim f (ValueVar a) = f a
-foldMapElim f (ValueApp g x) = mappend (foldMapElim f g) (foldMapIntro f x)
-
--- | "Slow" version of @'Bound.Scope.transverseScope' 'errorlessValueElim@ which
--- doesn't require @'Traversable' m@.
-runScopeValue
-    :: MonadErr m
-    => Scope IrrSym (ValueIntro err s) a
-    -> m (Scope IrrSym (ValueIntro Void1 s) a)
-runScopeValue s = toScope' <$> errorlessValue (fromScope s) where
-    toScope' e = Scope (fmap (fmap $ ValueCoerce . ValueVar) e)
--}

@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
--- TODO The syntax is quite light, so the precedence table is small:
+-- | TODO The syntax is quite light, so the precedence table is small:
 --
 -- +-------------+-------+--------------------------------------+
 -- | operation   | assoc | examples                             |
@@ -257,32 +257,6 @@ fromU (U n t)
     | otherwise = unpack t ++ map subDigit (show n)
   where
 
-subDigit :: Char -> Char
-subDigit '0' = '₀'
-subDigit '1' = '₁'
-subDigit '2' = '₂'
-subDigit '3' = '₃'
-subDigit '4' = '₄'
-subDigit '5' = '₅'
-subDigit '6' = '₆'
-subDigit '7' = '₇'
-subDigit '8' = '₈'
-subDigit '9' = '₉'
-subDigit c   = c
-
-unsubDigit :: Char -> Char
-unsubDigit '₀' = '0'
-unsubDigit '₁' = '1'
-unsubDigit '₂' = '2'
-unsubDigit '₃' = '3'
-unsubDigit '₄' = '4'
-unsubDigit '₅' = '5'
-unsubDigit '₆' = '6'
-unsubDigit '₇' = '7'
-unsubDigit '₈' = '8'
-unsubDigit '₉' = '9'
-unsubDigit c   = c
-
 data Stream a = a :> Stream a
 
 -------------------------------------------------------------------------------
@@ -303,11 +277,13 @@ data Stream a = a :> Stream a
 pppApplication :: Prec -> PrettyM Doc -> [PrettyM Doc] -> PrettyM Doc
 pppApplication d f xs = pppParens (d >= PrecApp) $ pppHang 4 f (pppSep xs)
 
--- | Specifies how to print pi blocks.
+-- | Specifies how to print (function) types.
 data PPPi
     = PPPi Doc (PrettyM Doc)
     | PPForall Doc
     | PPArrow (PrettyM Doc)
+    | PPSigma Doc (PrettyM Doc)
+    | PPExists Doc
 
 -- | Render (dependent) function space.
 --
@@ -333,6 +309,7 @@ pppPi :: Prec -> [PPPi] -> PrettyM Doc -> PrettyM Doc
 pppPi _ [] x = x
 pppPi d vs x = pppParens (d >= PrecPi) $
     pppSepPunctuated' pppArrow_ (map pppPiPart vs ++ [x]) where
+
 
 -- | Render lambda abstraction.
 --
@@ -378,10 +355,13 @@ pppAnnotationPi d x (s : ss) t = pppParens (d >= PrecAnn) $
         : map (\s' -> pppArrow <+> pppPiPart s') ss
         ++ [pppArrow <+> t]
 
+-- change to "∏"
 pppPiPart :: PPPi -> PrettyM Doc
-pppPiPart (PPPi n t)   = pppChar 'Π' <+> pppParens True (return n <+> pppColon <+> t)
-pppPiPart (PPForall n) = pppChar '∀' <+> return n
-pppPiPart (PPArrow n)  = n
+pppPiPart (PPPi n t)    = pppChar 'Π' <+> pppParens True (return n <+> pppColon <+> t)
+pppPiPart (PPForall n)  = pppChar '∀' <+> return n
+pppPiPart (PPArrow n)   = n
+pppPiPart (PPExists n)  = pppChar 'E' <+> return n
+pppPiPart (PPSigma n t) = pppChar '∑' <+> pppParens True (return n <+> pppColon <+> t)
 
 -------------------------------------------------------------------------------
 -- Combinators
@@ -518,6 +498,12 @@ instance (PrettyPrec a, PrettyPrec b) => PrettyPrec (Var a b) where
 -- | Generates fresh names.
 --
 -- Uses 'pppMarkSym', see also 'pppFreshSym', and 'pppScopedSym'.
+--
+-- >>> prettyPut $ ppp0 ("x" :: Sym)
+-- x
+--
+-- >>> prettyPut $ ppp0 ("x2" :: Sym)
+-- x₂
 --
 instance PrettyPrec Sym where
     ppp _ = pppMarkSym
