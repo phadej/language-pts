@@ -68,6 +68,7 @@ install:
   - (cd /tmp && echo '' | cabal new-repl -w ${HC} --build-dep fail)
   - if [ $HCNUMVER -ge 80000 ]; then cabal new-install -w ${HC} -j2 --symlink-bindir=$HOME/.local/bin doctest --constraint='doctest ==0.16.*'; fi
   - "printf 'packages: \".\"\\n' > cabal.project"
+  - "printf 'write-ghc-environment-files: always' >> cabal.project"
   - touch cabal.project.local
   - "if ! $NOINSTALLEDCONSTRAINTS; then for pkg in $($HCPKG list --simple-output); do echo $pkg  | grep -vw -- language-pts | sed 's/^/constraints: /' | sed 's/-[^-]*$/ installed/' >> cabal.project.local; done; fi"
   - cat cabal.project || true
@@ -90,6 +91,7 @@ script:
   - cd ${DISTDIR} || false
   - find . -maxdepth 1 -name '*.tar.gz' -exec tar -xvf '{}' \;
   - "printf 'packages: language-pts-*/*.cabal\\n' > cabal.project"
+  - "printf 'write-ghc-environment-files: always' >> cabal.project"
   - touch cabal.project.local
   - "if ! $NOINSTALLEDCONSTRAINTS; then for pkg in $($HCPKG list --simple-output); do echo $pkg  | grep -vw -- language-pts | sed 's/^/constraints: /' | sed 's/-[^-]*$/ installed/' >> cabal.project.local; done; fi"
   - cat cabal.project || true
@@ -99,6 +101,7 @@ script:
 
   # build & run tests, build benchmarks
   - cabal new-build -w ${HC} ${TEST} ${BENCH} all
+  - if [ "x$TEST" = "x--enable-tests" ]; then cabal new-test -w ${HC} ${TEST} ${BENCH} all; fi
 
   # doctest
   - if [ $HCNUMVER -ge 80000 ]; then (cd language-pts-* && doctest  -XCPP src); fi
