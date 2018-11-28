@@ -29,7 +29,7 @@ import Language.PTS.Bound
 --               = λ r b t f → 𝔹-elim (λ _ → r) t f b
 -- --
 -- -- We a need variant in higher universe too
--- λ» :define if₁ : Π (r : 𝓤₁) → 𝔹 → r → r → r
+-- λ» :define if₁ : ∏ (r : 𝓤₁) → 𝔹 → r → r → r
 --                = λ r b t f → 𝔹-elim (λ _ → r) t f b
 -- --
 -- -- 2. Type

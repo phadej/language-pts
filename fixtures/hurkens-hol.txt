@@ -15,8 +15,8 @@
 --
 -- we need (△,△,△) to define ℘ S = S → ⋆
 -- luckily we have Haskell as the meta-language
-λ» :define U : □ = Π (X : □) → (((X → ⋆) → ⋆) → X) → (X → ⋆) → ⋆
+λ» :define U : □ = ∏ (X : □) → (((X → ⋆) → ⋆) → X) → (X → ⋆) → ⋆
 error:
 • No PTS Rule (△,□,-)
 • when checking expression
-  Π (X : □) → (((X → ⋆) → ⋆) → X) → (X → ⋆) → ⋆
+  ∏ (X : □) → (((X → ⋆) → ⋆) → X) → (X → ⋆) → ⋆

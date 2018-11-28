@@ -54,14 +54,14 @@ import Language.PTS.Bound
 -- ------------------------------
 -- --
 -- λ» :define not-inv
--- : Π (b : 𝔹) → Eq 𝔹 b (not (not b))
+-- : ∏ (b : 𝔹) → Eq 𝔹 b (not (not b))
 -- = λ b → 𝔹-elim (λ x → Eq 𝔹 x (not (not x))) refl refl b
 -- --
 -- -- 5. Example with exists
 -- -------------------------
 -- --
 -- λ» :define not-surj
--- : Π (x : 𝔹) → ∑ (y : 𝔹) → Eq 𝔹 x (not y)
+-- : ∏ (x : 𝔹) → ∑ (y : 𝔹) → Eq 𝔹 x (not y)
 -- = λ x → 𝔹-elim (λ b → ∑ (y : 𝔹) → Eq 𝔹 b (not y))
 --                (pair false refl)
 --                (pair true refl)
