@@ -61,6 +61,11 @@ quoteIntro (ValueSigma x a b) = Inf $ Sigma x (unsafeChkToInf (quote_ a)) (quote
 quoteIntro (ValuePair x y)    = Pair (quoteIntro x) (quoteIntro y)
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+quoteIntro (ValueEquality a x y) = Inf $ Equality (unsafeChkToInf (quote_ a)) (quoteIntro x) (quoteIntro y)
+quoteIntro ValueRefl = Refl
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
 quoteIntro ValueBool  = Inf TermBool
 quoteIntro ValueTrue  = Inf TermTrue
@@ -82,7 +87,17 @@ quoteElim (ValueVar a)   = Var a
 quoteElim (ValueApp f x) = App (quoteElim f) (quote_ x)
 
 #ifdef LANGUAGE_PTS_HAS_SIGMA
-quoteElim (ValueMatch _p _x _y _b) = error "quoteElim ValueMatch {}"
+quoteElim (ValueMatch _p _x _y _b) = error "quoteElim ValueMatch {}" -- as
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+quoteElim (ValueJ v3 a p r u v w) = J v3
+    (unsafeChkToInf (quoteIntro a))
+    (quoteScopeInf p)
+    (quote_ r)
+    (quote_ u)
+    (quote_ v)
+    (Inf $ quoteElim w)
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL

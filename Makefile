@@ -17,7 +17,7 @@ haddock :
 	cabal new-haddock --with-compiler=ghc-8.4.4 --haddock-hyperlink-source
 
 doctest :
-	doctest -XCPP -DLANGUAGE_PTS_HAS_NAT -DLANGUAGE_PTS_HAS_NAT_PRIM -DLANGUAGE_PTS_HAS_BOOL -DLANGUAGE_PTS_HAS_BOOL_PRIM -DLANGUAGE_PTS_HAS_SIGMA --fast src/
+	doctest -XCPP -DLANGUAGE_PTS_HAS_NAT -DLANGUAGE_PTS_HAS_NAT_PRIM -DLANGUAGE_PTS_HAS_BOOL -DLANGUAGE_PTS_HAS_BOOL_PRIM -DLANGUAGE_PTS_HAS_SIGMA -DLANGUAGE_PTS_HAS_EQUALITY --fast src/
 
 doctest-all : doctest
 	doctest -XCPP --fast src/

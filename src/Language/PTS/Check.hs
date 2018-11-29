@@ -82,6 +82,31 @@ rtype_ ts ctx term = case term of
             Just cs -> return (ValueSigma x a' (toScope b'), ValueSort cs)
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    Equality a x y -> do
+        (a', as) <- rsort_ ts' ctx a
+        x' <- rcheck_ ts' ctx x a'
+        y' <- rcheck_ ts' ctx y a'
+        return (ValueEquality a' x' y', ValueSort as)
+
+    J v4 a p r u v w -> do
+        (a', _as) <- rsort_ ts' ctx a
+
+        u' <- rcheck_ ts' ctx u a'
+        v' <- rcheck_ ts' ctx v a'
+        w' <- rcheck_ ts' ctx w (ValueEquality a' u' v')
+
+        let pp = fromScopeH p
+        let ctx' = addContext3 a' a' (ValueEquality (fmap (F . F) a') (return $ F $ B "x") (return $ B "y")) ctx
+        (pp', _ps) <- rsort_ ts' ctx' (fmap wrap3 pp)
+        let p' = toScope (fmap unwrap3 pp')
+
+        r' <- rcheck_ ts' ctx r $ ValuePi "q" a' $ toScope $
+            instantiate3 (pure (B "q")) (pure (B "q")) ValueRefl (fmap F p')
+
+        return (valueJ v4 a' p' r' u' v' w', instantiate3 u' v' w' p')
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     TermBool   -> return (ValueBool, ValueSort typeSort)
     TermTrue   -> return (ValueTrue, ValueBool)
@@ -177,7 +202,7 @@ rsort_ ts ctx term = do
     (x, t) <- rtype_ ts ctx term
     case t of
         ValueSort s -> return (x, s)
-        _           -> throwErr $ SomeErr "not a sort"
+        _           -> throwErr $ SomeErr $ "not a sort: " ++ prettyShow t ++ " " ++ prettyShow term
 
 -------------------------------------------------------------------------------
 -- Checking
@@ -225,6 +250,15 @@ rcheck_ ts ctx term t = case term of
 
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    Refl -> case t of
+        ValueEquality a x y ->
+            if x == y
+            then return ValueRefl
+            else throwErr $ NonEqual (ppp0 x) (ppp0 y) (ppp0 a) ts
+        _ -> throwErr $ ReflNotEquality (ppp0 t) ts
+#endif
+
   where
     ts' :: [PrettyM Doc]
     ts' = ppp0 term : ts
@@ -237,7 +271,7 @@ addContext
 addContext x _ (B _) = Just (F <$> x)
 addContext _ f (F x) = fmap F <$> f x
 
-
+#ifdef LANGUAGE_PTS_HAS_SIGMA
 addContext2
     :: ValueIntro err s a
     -> Scope IrrSym (ValueIntro err s) a
@@ -255,3 +289,27 @@ unwrap :: Var IrrSym (Var IrrSym a) -> Var IrrSym2 a
 unwrap (B (IrrSym x))     = B (IrrSym2 x)
 unwrap (F (B (IrrSym y))) = B (IrrSym1 y)
 unwrap (F (F z))          = F z
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+addContext3
+    :: ValueIntro err s a
+    -> ValueIntro err s a
+    -> ValueIntro err s (Var IrrSym (Var IrrSym a))
+    -> (a -> Maybe (ValueIntro err s a))
+    -> Var IrrSym (Var IrrSym (Var IrrSym a))
+    -> Maybe (ValueIntro err s (Var IrrSym (Var IrrSym (Var IrrSym a))))
+addContext3 x y z = addContext z . addContext (fmap F y) . addContext x
+
+wrap3 :: Var IrrSym3 a -> Var IrrSym (Var IrrSym (Var IrrSym a))
+wrap3 (B (IrrSymK x)) = B (IrrSym x)
+wrap3 (B (IrrSymJ y)) = F (B (IrrSym y))
+wrap3 (B (IrrSymI z)) = F (F (B (IrrSym z)))
+wrap3 (F z)           = F (F (F z))
+
+unwrap3 :: Var IrrSym (Var IrrSym (Var IrrSym a)) -> Var IrrSym3 a
+unwrap3 (B (IrrSym x))         = B (IrrSymK x)
+unwrap3 (F (B (IrrSym y)))     = B (IrrSymJ y)
+unwrap3 (F (F (B (IrrSym z)))) = B (IrrSymI z)
+unwrap3 (F (F (F z)))          = F z
+#endif

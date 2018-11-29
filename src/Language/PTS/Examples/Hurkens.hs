@@ -15,11 +15,11 @@ import Language.PTS
 -- >>> runSilent $ spec_ HOLStar >> hurkensScript
 -- λ» :define ⊥ : ⋆ = ∀ x → x
 -- λ» :define ¬ : ⋆ → ⋆ = λ P → P → ⊥
--- λ» :define U : □ = Π (X : □) → (((X → ⋆)..
+-- λ» :define U : □ = ∏ (X : □) → (((X → ⋆)..
 -- error:
 -- • No PTS Rule (△,□,-)
 -- • when checking expression
---   Π (X : □) → (((X → ⋆) → ⋆) → X) → (X → ⋆) → ⋆
+--   ∏ (X : □) → (((X → ⋆) → ⋆) → X) → (X → ⋆) → ⋆
 --
 -- It fails even sooner in predicative systems, because we cannot define ⊥
 -- purely; to begin with:
@@ -33,21 +33,21 @@ import Language.PTS
 -- ...or if we try to define @U@, it will be in the wrong universe:
 --
 -- >>> runSilent $ spec_ (MartinLof 0) >> defineU
--- λ» :define U : 𝓤₁ = Π (X : 𝓤₁) → (((X → 𝓤)..
+-- λ» :define U : 𝓤₁ = ∏ (X : 𝓤₁) → (((X → 𝓤)..
 -- error:
 -- • Couldn't match expected type 𝓤₁ with actual type 𝓤₂
--- • In the expression: Π (X : 𝓤₁) → (((X → 𝓤) → 𝓤) → X) → (X → 𝓤) → 𝓤
+-- • In the expression: ∏ (X : 𝓤₁) → (((X → 𝓤) → 𝓤) → X) → (X → 𝓤) → 𝓤
 --
 -- __However__ in System U, the script goes through:
 --
 -- >>> runSilent $ spec_ SysUStar >> hurkensScript
 -- λ» :define ⊥ : ⋆ = ∀ x → x
 -- λ» :define ¬ : ⋆ → ⋆ = λ P → P → ⊥
--- λ» :define U : □ = Π (X : □) → (((X → ⋆)..
--- λ» :define Δ : U → ⋆ = λ y → ¬ (Π (p : (U →..
--- λ» :define Ω : U = λ X f p → (λ p₁ → Π (x..
--- λ» :define Θ : ⋆ = Π (p : (U → ⋆)) → (Π..
--- λ» :define D : ⋆ = Π (p : (U → ⋆)) → Ω U..
+-- λ» :define U : □ = ∏ (X : □) → (((X → ⋆)..
+-- λ» :define Δ : U → ⋆ = λ y → ¬ (∏ (p : (U →..
+-- λ» :define Ω : U = λ X f p → (λ p₁ → ∏ (x..
+-- λ» :define Θ : ⋆ = ∏ (p : (U → ⋆)) → (∏..
+-- λ» :define D : ⋆ = ∏ (p : (U → ⋆)) → Ω U..
 -- λ» :define lemma : Θ = λ p t₁ → t₁ Ω (λ x →..
 -- λ» :define H : D = λ p → lemma (λ y → p..
 -- λ» :define negH : ¬ D = lemma Δ (λ x H₂ H₃ →..

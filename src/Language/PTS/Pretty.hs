@@ -23,7 +23,7 @@
 -- f x y
 --
 -- %>>> pp $ pi_ "m" ("Nat" ~> sort_ s) s ("m" @@ "zero" ~> "x") s
--- Πm : Nat → ⋆. m zero → x
+-- ∏m : Nat → ⋆. m zero → x
 --
 -- %>>> pp' $ lam_ "x" "x"
 -- λx → x
@@ -288,16 +288,16 @@ data PPPi
 -- | Render (dependent) function space.
 --
 -- >>> prettyPut' $ pppPi PrecDef [PPPi "n" "Nat"] "Vec a n"
--- Π (n : Nat) →
+-- ∏ (n : Nat) →
 -- Vec a n
 --
 -- >>> prettyPut' $ pppPi PrecDef [PPPi "n" "Nat", PPForall "a"] "Vec a n"
--- Π (n : Nat) →
+-- ∏ (n : Nat) →
 -- ∀ a →
 -- Vec a n
 --
 -- >>> prettyPut' $ pppPi PrecDef [PPPi "n" "Nat", PPForall "a", PPArrow "Vec a n"] "r"
--- Π (n : Nat) →
+-- ∏ (n : Nat) →
 -- ∀ a →
 -- Vec a n →
 -- r
@@ -342,7 +342,7 @@ pppAnnotation d x t = pppParens (d >= PrecAnn) $
 --
 -- >>> prettyPut' $ pppAnnotationPi PrecDef "myfunc" [PPPi "n" "Nat", PPForall "a", PPArrow "Vec a n"] "r"
 -- myfunc
---     : Π (n : Nat)
+--     : ∏ (n : Nat)
 --     → ∀ a
 --     → Vec a n
 --     → r
@@ -357,7 +357,7 @@ pppAnnotationPi d x (s : ss) t = pppParens (d >= PrecAnn) $
 
 -- change to "∏"
 pppPiPart :: PPPi -> PrettyM Doc
-pppPiPart (PPPi n t)    = pppChar 'Π' <+> pppParens True (return n <+> pppColon <+> t)
+pppPiPart (PPPi n t)    = pppChar '∏' <+> pppParens True (return n <+> pppColon <+> t)
 pppPiPart (PPForall n)  = pppChar '∀' <+> return n
 pppPiPart (PPArrow n)   = n
 pppPiPart (PPExists n)  = pppChar 'E' <+> return n

@@ -47,10 +47,10 @@ import Language.PTS.Bound
 -- Nat → Nat
 --
 -- >>> prettyPut $ natCtx @LambdaStar "natElim"
--- Π (m : (Nat → ⋆)) →
+-- ∏ (m : (Nat → ⋆)) →
 -- m zero →
--- (Π (l : Nat) → m l → m (succ l)) →
--- Π (k : Nat) →
+-- (∏ (l : Nat) → m l → m (succ l)) →
+-- ∏ (k : Nat) →
 -- m k
 --
 -- But if we try to evaluate plus, we are stuck:

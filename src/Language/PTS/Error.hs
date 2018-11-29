@@ -68,12 +68,16 @@ data Err
       -- ^ variable not in the context provided
     | TypeMismatch (PrettyM Doc) (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
       -- ^ type mismatch in function application
+    | NonEqual (PrettyM Doc) (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
+      -- ^ Refl annotated with mismatching values
     | SortMismatch (PrettyM Doc) (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
       -- ^ type mismatch in function application
     | LambdaNotPi (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
       -- ^ Lambda is (annotated with) not a Pi-type
     | PairNotSigma (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
       -- ^ Pair is (annotated with) not a Sigma-type
+    | ReflNotEquality (PrettyM Doc) [PrettyM Doc]
+      -- ^ Refl is (annotated with) not an Equality-type
     | NotAPair (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
       -- ^ Match on not a pair
     | NoRule (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
@@ -117,6 +121,14 @@ instance PrettyPrec Err where
     ppp _ (PairNotSigma t term ctx)        = pppError ctx
         [ "The pair expression" <+> term <+> "doesn't have a Sigma-type"
         , "Annotated with" <+> t
+        ]
+    ppp _ (ReflNotEquality t ctx)          = pppError ctx
+        [ "The refl doesn't have a Equality-type"
+        , "Annotated with" <+> t
+        ]
+    ppp _ (NonEqual x y a ctx)             = pppError ctx
+        [ "Couldn't match expected value" <+> x <+> "with value" <+> y
+        , "Equality of the type:" <+> a
         ]
     ppp _ (NoRule s1 s2 ctx)               = pppError ctx
         [ "No PTS Rule (" <> s1 <> "," <> s2 <> ",-)"

@@ -4,6 +4,7 @@ tests: True
 constraints: language-pts +nat +nat-prim
 constraints: language-pts +bool +bool-prim
 constraints: language-pts +sigma
+constraints: language-pts +eq
 -- constraints: language-pts +eta
 -- constraints: language-pts +fix
 

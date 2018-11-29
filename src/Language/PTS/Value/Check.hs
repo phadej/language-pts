@@ -33,6 +33,10 @@ valueType_ ctx (ValueMatch p _ _ _b) = case valueType_ ctx p of
     pt           -> ValueErr $ review _Err $ NotAPair (ppp0 pt) (ppp0 p) []
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+valueType_ _ ValueJ {} = ValueErr $ review _Err $ SomeErr "valueJ"
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
 valueType_ _ctx (ValueBoolElim _ p _ _ b) = instantiate1 (ValueCoerce b) p
 #ifdef LANGUAGE_PTS_HAS_BOOL_PRIM

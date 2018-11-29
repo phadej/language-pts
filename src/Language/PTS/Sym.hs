@@ -53,12 +53,39 @@ irrSym2Bool = irrSym2fold False True
 instance Eq IrrSym2 where
     (==) = (==) `on` irrSym2Bool
 
-instance Ord IrrSym2 where
-    compare = compare `on` irrSym2Bool
-
 instance Show IrrSym2 where
     showsPrec d (IrrSym1 s) = showsPrec d s
     showsPrec d (IrrSym2 s) = showsPrec d s
+
+-- | Three irrelevant symbols.
+data IrrSym3
+    = IrrSymI Sym
+    | IrrSymJ Sym
+    | IrrSymK Sym
+
+instance Eq IrrSym3 where
+    IrrSymI _ == IrrSymI _ = True
+    IrrSymJ _ == IrrSymJ _ = True
+    IrrSymK _ == IrrSymK _ = True
+    _         == _         = False
+
+instance Show IrrSym3 where
+    showsPrec d (IrrSymI s) = showsPrec d s
+    showsPrec d (IrrSymJ s) = showsPrec d s
+    showsPrec d (IrrSymK s) = showsPrec d s
+
+irrSym3fold :: a ->  a -> a -> IrrSym3 -> a
+irrSym3fold x _ _ (IrrSymI _) = x
+irrSym3fold _ y _ (IrrSymJ _) = y
+irrSym3fold _ _ z (IrrSymK _) = z
+
+-- | three of a kind
+data V3 a = V3 a a a
+  deriving (Eq, Show)
+
+-------------------------------------------------------------------------------
+-- Digits
+-------------------------------------------------------------------------------
 
 subDigit :: Char -> Char
 subDigit '0' = '₀'
