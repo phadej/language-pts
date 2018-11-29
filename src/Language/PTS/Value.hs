@@ -30,6 +30,10 @@ module Language.PTS.Value (
     -- * Equality
     valueJ,
 #endif
+#if LANGUAGE_PTS_HAS_PROP
+    -- * Prop types
+    valueAbsurd,
+#endif
 #if LANGUAGE_PTS_HAS_BOOL
     -- * Booleans
     valueBoolElim,
@@ -127,6 +131,12 @@ data ValueIntro err s a
       -- ^ Equality witness
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_PROP
+    | ValueUnit
+    | ValueI
+    | ValueEmpty
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     | ValueBool
       -- ^ Booleans.
@@ -175,7 +185,7 @@ data ValueElim err s a
     | ValueMatch (ValueElim err s a) IrrSym IrrSym (Scope IrrSym2 (ValueIntro err s) a)
 #endif
 
-#ifdef LANGUAGE_PTS_HAS_SIGMA
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
       -- | Equality elmination
     | ValueJ (V3 IrrSym)                           -- x y z q
              (ValueIntro err s a)                  -- a : s
@@ -185,6 +195,10 @@ data ValueElim err s a
              (ValueIntro err s a)                  -- v : a
              (ValueElim err s a)                   -- w : Eq a u v
                                                    --   : P u v w
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+    | ValueAbsurd (ValueIntro err s a) (ValueElim err s a)
 #endif
  
 #ifdef LANGUAGE_PTS_HAS_BOOL
@@ -252,6 +266,12 @@ instance (PrettyPrec err,  AsErr err, Specification s) => Monad (ValueIntro err 
     ValueRefl           >>= _ = ValueRefl
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_PROP
+    ValueUnit  >>= _ = ValueUnit
+    ValueI     >>= _ = ValueI
+    ValueEmpty >>= _ = ValueEmpty
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     ValueBool       >>= _ = ValueBool
     ValueTrue       >>= _ = ValueTrue
@@ -291,11 +311,15 @@ valueAppBind (ValueJ v3 a p r u v w) k = valueJ v3
     (valueAppBind w k)
 #endif
 
-#if LANGUAGE_PTS_HAS_BOOL
+#ifdef LANGUAGE_PTS_HAS_PROP
+valueAppBind (ValueAbsurd a x) k = valueAbsurd (a >>= k) (valueAppBind x k)
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_BOOL
 valueAppBind (ValueBoolElim x p t f b) k =
     valueBoolElim x (p >>>= k) (t >>= k) (f >>= k) (valueAppBind b k)
 
-#if LANGUAGE_PTS_HAS_BOOL_PRIM
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
 valueAppBind (ValueAnd x y) k =
     valueAnd (valueAppBind x k) (valueAppBind y k)
 #endif
@@ -344,6 +368,10 @@ instance (PrettyPrec err, AsErr err, Specification s) => Monad (ValueElim err s)
         (valueBind u k)
         (valueBind v k)
         (w >>= k)
+#endif
+
+#if LANGUAGE_PTS_HAS_PROP
+    ValueAbsurd a x >>= k = ValueAbsurd (valueBind a k) (x >>= k)
 #endif
 
 #if LANGUAGE_PTS_HAS_BOOL
@@ -400,6 +428,12 @@ valueBind (ValueEquality a x y) k = ValueEquality (a >>= ValueCoerce . k) (x >>=
 valueBind ValueRefl             _ = ValueRefl
 #endif
 
+#if LANGUAGE_PTS_HAS_PROP
+valueBind ValueUnit _  = ValueUnit
+valueBind ValueI _     = ValueI
+valueBind ValueEmpty _ = ValueEmpty
+#endif
+
 #if LANGUAGE_PTS_HAS_BOOL
 valueBind ValueBool        _ = ValueBool
 valueBind ValueTrue        _ = ValueTrue
@@ -415,8 +449,6 @@ valueBind ValueNat        _ = ValueNat
 valueBind ValueNatZ       _ = ValueNatZ
 valueBind (ValueNatS n)   k = ValueNatS (n >>= ValueCoerce . k)
 #endif
-
-
 
 pureValueIntro :: a -> ValueIntro err s a
 pureValueIntro = ValueCoerce . pureValueElim
@@ -585,6 +617,21 @@ valueJ v3 a p r u v w = case w of
 #endif
 
 -------------------------------------------------------------------------------
+-- Prop
+-------------------------------------------------------------------------------
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+valueAbsurd 
+    :: (Specification s, AsErr err, PrettyPrec err)
+    => ValueIntro err s a
+    -> ValueIntro err s a
+    -> ValueIntro err s a
+valueAbsurd a (ValueCoerce x) = ValueCoerce (ValueAbsurd a x)
+valueAbsurd _ (ValueErr err)  = ValueErr err
+valueAbsurd _ v               = ValueErr $ review _Err $ ApplyPanic "absurd" $ ppp0 (void v)
+#endif
+
+-------------------------------------------------------------------------------
 -- Run values
 -------------------------------------------------------------------------------
 
@@ -621,6 +668,12 @@ traverseErrValueIntro f (ValueEquality a x y)  = ValueEquality
 traverseErrValueIntro _ ValueRefl = pure ValueRefl
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_PROP
+traverseErrValueIntro _ ValueUnit      = pure ValueUnit
+traverseErrValueIntro _ ValueI         = pure ValueI
+traverseErrValueIntro _ ValueEmpty     = pure ValueEmpty
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
 traverseErrValueIntro _ ValueBool      = pure ValueBool
 traverseErrValueIntro _ ValueTrue      = pure ValueTrue
@@ -654,6 +707,12 @@ traverseErrValueElim g (ValueJ v3 a p r u v w) = ValueJ v3
     <*> traverseErrValueIntro g u
     <*> traverseErrValueIntro g v
     <*> traverseErrValueElim g w
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+traverseErrValueElim g (ValueAbsurd a x) = ValueAbsurd
+    <$> traverseErrValueIntro g a
+    <*> traverseErrValueElim g x
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
@@ -752,6 +811,12 @@ instance (Show s, Show err) => Show1 (ValueIntro err s) where
     liftShowsPrec _ _ _ ValueRefl = showString "ValueRefl"
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_PROP
+    liftShowsPrec _  _  _ ValueUnit  = showString "ValueBool"
+    liftShowsPrec _  _  _ ValueI     = showString "ValueI"
+    liftShowsPrec _  _  _ ValueEmpty = showString "ValueEmpty"
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     liftShowsPrec _  _  _ ValueBool      = showString "ValueBool"
     liftShowsPrec _  _  _ ValueTrue      = showString "ValueTrue"
@@ -792,6 +857,13 @@ instance (Show s, Show err) => Show1 (ValueElim err s) where
         . showChar ' ' . liftShowsPrec sp sl 11 u
         . showChar ' ' . liftShowsPrec sp sl 11 v
         . showChar ' ' . liftShowsPrec sp sl 11 w
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+    liftShowsPrec sp sl d (ValueAbsurd x y) = showsBinaryWith
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "ValueAbsurd" d x y
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
@@ -876,6 +948,12 @@ instance Eq s => Eq1 (ValueIntro err s) where
     liftEq _eq ValueRefl ValueRefl = True
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_PROP
+    liftEq _ ValueUnit  ValueUnit  = True
+    liftEq _ ValueI     ValueI     = True
+    liftEq _ ValueEmpty ValueEmpty = True
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     liftEq _  ValueBool      ValueBool       = True
     liftEq _  ValueTrue      ValueTrue       = True
@@ -899,6 +977,22 @@ instance Eq s => Eq1 (ValueElim err s) where
     liftEq eq (ValueMatch p _ _ b) (ValueMatch p' _ _ b') =
         liftEq eq p p' &&
         liftEq eq b b'
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    liftEq eq (ValueJ _ a p r x y z) (ValueJ _ a' p' r' x' y' z') =
+        liftEq eq a a' &&
+        liftEq eq p p' &&
+        liftEq eq r r' &&
+        liftEq eq x x' &&
+        liftEq eq y y' &&
+        liftEq eq z z'
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+    liftEq eq (ValueAbsurd a x) (ValueAbsurd a' x') =
+        liftEq eq a a' &&
+        liftEq eq x x'
 #endif
 
 
@@ -974,6 +1068,12 @@ pppIntro d (ValuePair a b) = pppApplication d
     [ pppIntro PrecApp a
     , pppIntro PrecApp b
     ]
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+pppIntro _ ValueUnit  = pppChar '⊤'
+pppIntro _ ValueI     = pppChar 'I'
+pppIntro _ ValueEmpty = pppChar '⊥'
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
@@ -1057,6 +1157,11 @@ pppElim d (ValueJ (V3 x y z) a p r u v w) = pppApplication d
     , pppIntro PrecApp v
     , pppElim PrecApp w
     ]
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+pppElim d (ValueAbsurd a x) = pppApplication d
+    (pppText "absurd-as") [ pppIntro PrecApp a, pppElim PrecApp x ]
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL

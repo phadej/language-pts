@@ -107,6 +107,12 @@ rtype_ ts ctx term = case term of
         return (valueJ v4 a' p' r' u' v' w', instantiate3 u' v' w' p')
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_PROP
+    Unit  -> return (ValueUnit, ValueSort typeSort)
+    Empty -> return (ValueEmpty, ValueSort typeSort)
+    I     -> return (ValueI, ValueUnit)
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     TermBool   -> return (ValueBool, ValueSort typeSort)
     TermTrue   -> return (ValueTrue, ValueBool)
@@ -257,6 +263,12 @@ rcheck_ ts ctx term t = case term of
             then return ValueRefl
             else throwErr $ NonEqual (ppp0 x) (ppp0 y) (ppp0 a) ts
         _ -> throwErr $ ReflNotEquality (ppp0 t) ts
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+    Absurd x -> do
+        x' <- rcheck_ ts' ctx x ValueEmpty
+        return (valueAbsurd t x')
 #endif
 
   where

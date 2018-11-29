@@ -3,7 +3,9 @@
 #ifdef LANGUAGE_PTS_HAS_BOOL
 #ifdef LANGUAGE_PTS_HAS_NAT
 #ifdef LANGUAGE_PTS_HAS_SIGMA
+#ifdef LANGUAGE_PTS_HAS_PROP
 #define EQUALITY_EXAMPLES
+#endif
 #endif
 #endif
 #endif
@@ -13,6 +15,7 @@ module Language.PTS.Examples.Equality (
     equalityScript,
     equivalenceScript,
     leibnizScript,
+    inequalityScript,
 #endif
     ) where
 
@@ -205,6 +208,75 @@ equivalenceScript = do
             (Inf $ j_ "u" "v" "w" "A" (Equality "A" "v" "z" ~> Equality "A" "u" "z") (lams_ ["_", "r"] "r") "x" "y" "p")
 
     example_ $ "trans" @@@ TermNat @@ 1 + 3 @@ 2 + 2 @@ 3 + 1 @@ Refl
+
+-- |
+--
+-- >>> runLoud $ spec_ (MartinLof 0) >> inequalityScript
+-- -- Proving inequalities is difficult!
+-- λ» :define if₁ : ∏ (r : 𝓤₁) → 𝔹 → r → r → r
+--                = λ r b t f → 𝔹-elim (λ _ → r) t f b
+-- --
+-- -- Important thing is to find proper motive for induction
+-- λ» :define motive
+-- : 𝔹 → 𝔹 → 𝓤 = λ u v → if₁ 𝓤 u (if₁ 𝓤 v ⊤ ⊥) ⊤
+-- --
+-- -- With proper motive, proof is almost trivial
+-- λ» :define true-is-not-false
+-- : Eq 𝔹 true false → ⊥
+-- = λ p → J 𝔹
+--           (λ u v w → motive u v)
+--           (λ b → 𝔹-elim (λ c → motive c c) I I b)
+--           true
+--           false
+--           p
+-- --
+-- λ» :example true-is-not-false
+-- ↪ λ p →
+--       J 𝔹
+--         (λ u v w →
+--              𝔹-elim (λ _ → 𝓤) (𝔹-elim (λ _ → 𝓤) ⊤ ⊥ v) ⊤ u)
+--         (λ b → 𝔹-elim (λ c → 𝔹-elim (λ _ → 𝓤)
+--                                     (𝔹-elim (λ _ → 𝓤) ⊤ ⊥ c)
+--                                     ⊤
+--                                     c)
+--                       I
+--                       I
+--                       b)
+--         true
+--         false
+--         p
+-- : Eq 𝔹 true false → ⊥
+-- ∎
+--
+inequalityScript :: forall s m. Script s m => m ()
+inequalityScript = do
+    comment_ "Proving inequalities is difficult!"
+
+    define_ "if1"
+        $$ pi_ "r" (sort_ typeSortSort) (TermBool ~> "r" ~> "r" ~> "r")
+        $$ lams_ ["r", "b", "t", "f"]
+              (Inf $ TermBoolElim "_" (liftH "r") "t" "f" "b")
+
+    comment_ "Important thing is to find proper motive for induction"
+
+    let motive u v = "if1" @@ sort_ typeSort @@ u @@ ("if1" @@ sort_ typeSort @@ v @@@ Unit @@@ Empty) @@@ Unit
+
+    define_ "motive"
+        $$ TermBool ~> TermBool ~> sort_ typeSort
+        $$ lams_ ["u","v"] (motive "u" "v")
+
+    comment_ "With proper motive, proof is almost trivial"
+    let j_ u v w a p =  J (V3 (IrrSym u) (IrrSym v) (IrrSym w)) a (abstract3HSym u v w p)
+
+    define_ "true-is-not-false"
+        $$ Equality TermBool (Inf TermTrue) (Inf TermFalse) ~> Empty
+        $$ lams_ ["p"]
+            (Inf $ j_ "u" "v" "w" TermBool
+                ("motive" @@ "u" @@  "v")
+                (lam_ "b" $ Inf $ TermBoolElim "c" (abstract1HSym "c" $ "motive" @@ "c" @@ "c") (Inf I) (Inf I) "b")
+                (Inf TermTrue) (Inf TermFalse) "p")
+
+    example_ "true-is-not-false"
 
 -- |
 --
