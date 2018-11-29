@@ -34,7 +34,13 @@ valueType_ ctx (ValueMatch p _ _ _b) = case valueType_ ctx p of
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_EQUALITY
-valueType_ _ ValueJ {} = ValueErr $ review _Err $ SomeErr "valueJ"
+valueType_ _ ValueJ {}
+    = ValueErr $ review _Err $ SomeErr "valueJ"
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+valueType_ _ ValueAbsurd {}
+    = ValueErr $ review _Err $ SomeErr "valueAbsurd"
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL

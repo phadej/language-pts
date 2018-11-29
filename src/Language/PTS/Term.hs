@@ -154,6 +154,32 @@ data TermInf s a
                                 --   : P u v w
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_PROP
+    -- | Tautology.
+    --
+    -- \[\frac
+    -- {}
+    -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\top} \Rightarrow \color{darkred}\star}
+    -- \]
+    | Unit
+
+    -- | Tautology witness.
+    --
+    -- \[\frac
+    -- {}
+    -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathsf{I}} \Rightarrow \color{darkred}\top}
+    -- \]
+    | I
+
+    -- | Contradiction.
+    --
+    -- \[\frac
+    -- {}
+    -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\bot} \Rightarrow \color{darkred}\star}
+    -- \]
+    | Empty
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
     | TermBool
       -- ^ Booleans
@@ -364,6 +390,16 @@ data TermChk s a
     | Refl
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_PROP
+    -- | Ex falso quodlibet.
+    --
+    -- \[\frac
+    -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{x} \Leftarrow \color{darkred}\bot}
+    -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathsf{absurd}\;x} \Leftarrow \color{darkred}{\tau}}
+    -- \]
+    | Absurd (TermChk s a)
+#endif
+
   deriving (Functor, Foldable, Traversable)
 
 -------------------------------------------------------------------------------
@@ -401,6 +437,12 @@ instance Show s => Show1 (TermChk s) where
 
 #ifdef LANGUAGE_PTS_HAS_EQUALITY
     liftShowsPrec _ _ _ Refl = showString "Refl"
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+    liftShowsPrec sp sl d (Absurd x) = showsUnaryWith
+        (liftShowsPrec sp sl)
+        "Absurd" d x
 #endif
 
 instance Show s => Show1 (TermInf s) where
@@ -450,6 +492,12 @@ instance Show s => Show1 (TermInf s) where
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
         "Equality" d x y z
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+    liftShowsPrec _  _  _ Unit  = showString "Unit"
+    liftShowsPrec _  _  _ I     = showString "I"
+    liftShowsPrec _  _  _ Empty = showString "Empty"
 #endif
         
 #ifdef LANGUAGE_PTS_HAS_BOOL
@@ -542,6 +590,12 @@ pppInf d (J (V3 x y z) a p r u v w) = pppApplication d
     , pppChk PrecApp v
     , pppChk PrecApp w
     ]
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+pppInf _ Unit  = pppChar '⊤'
+pppInf _ I     = pppChar 'I'
+pppInf _ Empty = pppChar '⊥'
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
@@ -667,6 +721,11 @@ pppChk d (Match p x y b) = pppApplication d
 pppChk _ Refl = "refl"
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_PROP
+pppChk d (Absurd x) = pppApplication d
+    (pppText "absurd") [ pppChk PrecApp x ]
+#endif
+
 instance (Specification s, PrettyPrec a) => PrettyPrec (TermInf s a) where ppp = ppp1
 instance (Specification s, PrettyPrec a) => PrettyPrec (TermChk s a)  where ppp = ppp1
 
@@ -694,6 +753,12 @@ instance Monad (TermInf s) where
 #ifdef LANGUAGE_PTS_HAS_EQUALITY
     Equality a x y   >>= f = Equality (a >>= f) (x >>== f) (y >>== f)
     J v3 a p r u v w >>= f = J v3 (a >>= f) (p >>== f) (r >>== f) (u >>== f) (v >>== f) (w >>== f)
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+    Unit  >>= _ = Unit
+    I     >>= _ = I
+    Empty >>= _ = Empty
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
@@ -738,6 +803,10 @@ instance Module (TermChk s) (TermInf s) where
 
 #ifdef LANGUAGE_PTS_HAS_EQUALITY
     Refl >>== _ = Refl
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_PROP
+    Absurd x >>== k = Absurd (x >>== k)
 #endif
 
 instance Module (TermInf s) (TermInf s) where

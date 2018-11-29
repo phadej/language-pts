@@ -5,3 +5,6 @@ dist-newstyle-*/
 
 ref/
 *.agdai
+*.vo
+*.vo.aux
+*.glob

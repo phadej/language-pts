@@ -43,6 +43,11 @@ flag eq
   manual:  True
   default: False
 
+flag prop
+  description: Add Unit and Empty types
+  manual:  True
+  default: False
+
 flag bool
   description: add @Bool@ combinators to the type-system.
   manual:  True
@@ -90,11 +95,14 @@ library
     if flag(nat-prim)
       cpp-options: -DLANGUAGE_PTS_HAS_NAT_PRIM
 
-  if flag(sigma) 
+  if flag(sigma)
     cpp-options: -DLANGUAGE_PTS_HAS_SIGMA
 
-  if flag(eq) 
+  if flag(eq)
     cpp-options: -DLANGUAGE_PTS_HAS_EQUALITY
+
+  if flag(prop)
+    cpp-options: -DLANGUAGE_PTS_HAS_PROP
 
   if flag(eta)
     cpp-options: -DLANGUAGE_PTS_HAS_ETA
