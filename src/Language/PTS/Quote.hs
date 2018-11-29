@@ -87,7 +87,17 @@ quoteElim (ValueVar a)   = Var a
 quoteElim (ValueApp f x) = App (quoteElim f) (quote_ x)
 
 #ifdef LANGUAGE_PTS_HAS_SIGMA
-quoteElim (ValueMatch _p _x _y _b) = error "quoteElim ValueMatch {}"
+quoteElim (ValueMatch _p _x _y _b) = error "quoteElim ValueMatch {}" -- as
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+quoteElim (ValueJ v3 a p r u v w) = J v3
+    (unsafeChkToInf (quoteIntro a))
+    (quoteScopeInf p)
+    (quote_ r)
+    (quote_ u)
+    (quote_ v)
+    (Inf $ quoteElim w)
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL

@@ -34,8 +34,8 @@ instance ValueConv ValueElim where
 -- App
 -------------------------------------------------------------------------------
 
-infixl 8 @@
-infixl 8 @@@
+infixl 3 @@
+infixl 3 @@@
 
 class CanApp u v w | w -> u v where
     -- | Left-associative '$' for terms and values.

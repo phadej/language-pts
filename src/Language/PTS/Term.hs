@@ -8,6 +8,8 @@ module Language.PTS.Term (
     Term,
     TermInf (..),
     TermChk (..),
+    ScopeInf,
+    ScopeChkInf,
     ) where
 
 import Control.Monad        (ap)
@@ -31,6 +33,9 @@ import Numeric.Natural
 -- * Terms
 
 type Term s = TermInf s Sym
+
+type ScopeInf n s a = ScopeH n (TermInf s) (TermInf s) a
+type ScopeChkInf n s a = ScopeH n (TermChk s) (TermInf s) a
 
 -- | Inferable terms, \(\mathit{Term}_\Rightarrow\).
 --
@@ -118,6 +123,35 @@ data TermInf s a
       -- \;\mathsf{Eq}
       -- \]
     | Equality (TermInf s a) (TermChk s a) (TermChk s a)
+
+
+      -- | J-rule. Propositional equality elimination.
+      --
+      -- \[\frac
+      -- {\array{
+      -- \color{darkblue}\Gamma \vdash \color{darkgreen}{a} \Rightarrow \color{darkred}{s} \qquad s \in \mathcal{S}
+      -- \cr
+      -- \color{darkblue}{\Gamma, x : A, y : A, z : \mathsf{Eq}\,a\,x\,y} \vdash \color{darkgreen}{P} \Rightarrow \color{darkred}{s'} \qquad s' \in \mathcal{S}
+      -- \cr
+      -- \color{darkblue}{\Gamma, q : A} \vdash \color{darkgreen}{r} \Leftarrow \color{darkred}{P [ x \mapsto q; y \mapsto q; z \mapsto \mathsf{refl}]}
+      -- \cr
+      -- \color{darkblue}{\Gamma} \vdash \color{darkgreen}{u} \Leftarrow \color{darkred}{a}
+      -- \qquad
+      -- \color{darkblue}{\Gamma} \vdash \color{darkgreen}{v} \Leftarrow \color{darkred}{a}
+      -- \qquad
+      -- \color{darkblue}{\Gamma} \vdash \color{darkgreen}{w} \Leftarrow \color{darkred}{\mathsf{Eq}\,A\,u\,v}
+      -- }}
+      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathsf{J}\;a\;(\lambda\,x\,y\,z \to c)\;(\lambda\,q \to r)\;u\,v\,w} \Rightarrow \color{darkred}{P [ x \mapsto u; y \mapsto v; z \mapsto w]} }
+      -- \;\mathsf{J}
+      -- \]
+    | J (V3 IrrSym)             -- x y z - symbols
+        (TermInf s a)           -- a : s
+        (ScopeInf IrrSym3 s a)  -- P : (x y : a) -> (z : Eq a x y) -> s')
+        (TermChk s a)           -- r : (q : a) -> P q q (refl a q)
+        (TermChk s a)           -- u : a
+        (TermChk s a)           -- v : a
+        (TermChk s a)           -- w : Eq a u v
+                                --   : P u v w
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
@@ -167,7 +201,7 @@ data TermInf s a
       -- }}
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}\mathsf{-elim}\,(\lambda\, x \to P) \,t\,f\,b} \Rightarrow \color{darkred}{\sigma} }
     -- \]
-    | TermBoolElim IrrSym (ScopeH IrrSym (TermInf s) (TermInf s) a) (TermChk s a) (TermChk s a) (TermChk s a)
+    | TermBoolElim IrrSym (ScopeInf IrrSym s a) (TermChk s a) (TermChk s a) (TermChk s a)
 
 #ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
 
@@ -235,7 +269,7 @@ data TermInf s a
       -- }}
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{N}\mathsf{-elim}\,(\lambda\, x \to p)\,z\,s\,n} \Rightarrow \color{darkred}{\sigma} }
     -- \]
-    | TermNatElim IrrSym (ScopeH IrrSym (TermInf s) (TermInf s) a) (TermChk s a) (TermChk s a) (TermChk s a)
+    | TermNatElim IrrSym (ScopeInf IrrSym s a) (TermChk s a) (TermChk s a) (TermChk s a)
 
 #ifdef LANGUAGE_PTS_HAS_NAT_PRIM
 
@@ -290,7 +324,7 @@ data TermChk s a
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\lambda\, x \to e} \Leftarrow \color{darkred}{\prod (x : \tau) \to \tau'}}
       -- \;\mathrm{L{\scriptstyle AM}}
       -- \]
-    | Lam IrrSym (ScopeH IrrSym (TermChk s) (TermInf s) a)
+    | Lam IrrSym (ScopeChkInf IrrSym s a)
 
 
 #ifdef LANGUAGE_PTS_HAS_SIGMA
@@ -317,7 +351,7 @@ data TermChk s a
       -- }
       -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathsf{match}\;p\;(\lambda\, x\, y \to b)} \Leftarrow \color{darkred}{\tau''}}
       -- \]
-    | Match (TermInf s a) IrrSym IrrSym (ScopeH IrrSym2 (TermChk s) (TermInf s) a)
+    | Match (TermInf s a) IrrSym IrrSym (ScopeChkInf IrrSym2 s a)
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_EQUALITY
@@ -396,6 +430,18 @@ instance Show s => Show1 (TermInf s) where
         (liftShowsPrec sp sl)
         (liftShowsPrec sp sl)
         "Sigma" d x y z
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
+    liftShowsPrec sp sl d (J v3 a p r u v w) = showParen (d >= 10)
+        $ showString "J"
+        . showChar ' ' . showsPrec 11 v3
+        . showChar ' ' . liftShowsPrec sp sl 11 a
+        . showChar ' ' . liftShowsPrec sp sl 11 p
+        . showChar ' ' . liftShowsPrec sp sl 11 r
+        . showChar ' ' . liftShowsPrec sp sl 11 u
+        . showChar ' ' . liftShowsPrec sp sl 11 v
+        . showChar ' ' . liftShowsPrec sp sl 11 w
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_EQUALITY
@@ -482,6 +528,19 @@ pppInf d (Equality a x y) = pppApplication d
     [ pppInf PrecApp a
     , pppChk PrecApp x
     , pppChk PrecApp y
+    ]
+
+pppInf d (J (V3 x y z) a p r u v w) = pppApplication d
+    (pppText "J")
+    [ pppInf PrecApp a
+    , pppScopedIrrSym x $ \xDoc ->
+      pppScopedIrrSym y $ \yDoc ->
+      pppScopedIrrSym z $ \zDoc ->
+      pppLambda PrecApp [xDoc,yDoc,zDoc] $ pppInf PrecLambda $ instantiate3Hreturn xDoc yDoc zDoc p
+    , pppChk PrecApp r
+    , pppChk PrecApp u
+    , pppChk PrecApp v
+    , pppChk PrecApp w
     ]
 #endif
 
@@ -633,7 +692,8 @@ instance Monad (TermInf s) where
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_EQUALITY
-    Equality a x y >>= f = Equality (a >>= f) (x >>== f) (y >>== f)
+    Equality a x y   >>= f = Equality (a >>= f) (x >>== f) (y >>== f)
+    J v3 a p r u v w >>= f = J v3 (a >>= f) (p >>== f) (r >>== f) (u >>== f) (v >>== f) (w >>== f)
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_BOOL
@@ -703,3 +763,31 @@ instance IsString a => IsString (TermInf s a) where
 
 instance IsString a => IsString (TermChk s a) where
     fromString = Inf . fromString
+
+instance IsString a => Num (TermInf s a) where
+    fromInteger n
+#ifdef LANGUAGE_PTS_HAS_NAT
+        | n <= 0    = TermNatZ
+        | otherwise = TermNatS (Inf (fromInteger (pred n)))
+#else
+        = fromString (show n)
+#endif
+
+    n + m = App (App "plus" (Inf n)) (Inf m)
+    n * m = App (App "times" (Inf n)) (Inf m)
+    n - m = App (App "minus" (Inf n)) (Inf m)
+    
+    abs n    = App "abs" (Inf n)
+    signum n = App "signum" (Inf n)
+    negate n = App "negate" (Inf n)
+
+instance IsString a => Num (TermChk s a) where
+    fromInteger = Inf . fromInteger
+
+    n + m = Inf (App (App "plus" n) m)
+    n * m = Inf (App (App "times" n) m)
+    n - m = Inf (App (App "minus" n) m)
+
+    abs n    = Inf (App "abs" n)
+    signum n = Inf (App "signum" n)
+    negate n = Inf (App "negate" n)

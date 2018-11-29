@@ -11,6 +11,8 @@
 module Language.PTS.Examples.Equality (
 #ifdef EQUALITY_EXAMPLES
     equalityScript,
+    equivalenceScript,
+    leibnizScript,
 #endif
     ) where
 
@@ -112,6 +114,167 @@ equalityScript = do
             (Pair (Inf TermFalse) Refl)
             (Pair (Inf TermTrue) Refl)
             "x")
+
+
+-- | [OPLSS 2014 Type Theory](https://youtu.be/Wpls061J5D0?t=14340)
+--
+-- >>> runLoud $ spec_ (MartinLof 0) >> equivalenceScript
+-- -- 1. Symmetry
+-- --------------
+-- --
+-- λ» :define SYM
+-- : 𝓤 → 𝓤 = λ A → ∏ (x : A) → ∏ (y : A) → Eq A x y → Eq A y x
+-- λ» :define sym
+-- : ∀ A → SYM A
+-- = λ A x y p → J A (λ u v w → Eq A v u) (λ q → refl) x y p
+-- --
+-- -- 1.1. Example
+-- --
+-- λ» :define nat-fold
+-- : ∀ r → ℕ → (r → r) → r → r
+-- = λ r n s z → ℕ-elim (λ _ → r) z (λ l → s) n
+-- λ» :define succ : ℕ → ℕ = λ n → S n
+-- λ» :define plus : ℕ → ℕ → ℕ = λ x y → nat-fold ℕ x succ y
+-- --
+-- λ» :example refl : Eq ℕ (plus 3 1) (plus 1 3)
+-- ↪ refl : Eq ℕ 4 4
+-- --
+-- λ» :example sym ℕ (plus 3 1) (plus 1 3) refl
+-- ↪ refl : Eq ℕ 4 4
+-- --
+-- -- 2. Transitivity
+-- ------------------
+-- --
+-- λ» :define TRANS : 𝓤 → 𝓤 = λ A → ∏ (x : A) →
+--                                  ∏ (y : A) →
+--                                  ∏ (z : A) →
+--                                  Eq A x y →
+--                                  Eq A y z →
+--                                  Eq A x z
+-- λ» :define trans
+-- : ∀ A → TRANS A
+-- = λ A x y z p →
+--       J A (λ u v w → Eq A v z → Eq A u z) (λ _ r → r) x y p
+-- --
+-- λ» :example trans ℕ (plus 1 3) (plus 2 2) (plus 3 1) refl
+-- ↪ λ r → r : Eq ℕ 4 4 → Eq ℕ 4 4
+-- ∎
+--
+equivalenceScript :: forall s m. Script s m => m ()
+equivalenceScript = do
+    section_ "Symmetry"
+
+    define_ "SYM"
+        $$ sort_ typeSort ~> sort_ typeSort
+        $$ lam_ "A" (pi_ "x" "A" $ pi_ "y" "A" $ Equality "A" "x" "y" ~> Equality "A" "y" "x")
+
+    let j_ u v w a p =  J (V3 (IrrSym u) (IrrSym v) (IrrSym w)) a (abstract3HSym u v w p)
+
+    define_ "sym"
+        $$ forall_ "A" ("SYM" @@ "A")
+        $$ lams_ ["A","x","y","p"]
+            (Inf $ j_ "u" "v" "w" "A" (Equality "A" "v" "u") (lam_ "q" Refl) "x" "y" "p")
+
+    subsection_ "Example"
+
+    define_ "nat-fold"
+        $$ forall_ "r" (TermNat ~> ("r" ~> "r") ~> "r" ~> "r")
+        $$ lams_ ["r", "n", "s", "z"]
+              (Inf $ TermNatElim "_" (liftH "r") "z" (lam_ "l" "s") "n")
+
+    define_ "succ"
+        $$ TermNat ~> TermNat
+        $$ lam_ "n" (Inf $ TermNatS "n")
+
+    define_ "plus"
+        $$ TermNat ~> TermNat ~> TermNat
+        $$ lams_ ["x", "y"] ("nat-fold" @@@ TermNat @@ "x" @@ "succ" @@ "y")
+
+    example_ $ Refl -:- Equality TermNat (3 + 1) (1 + 3)
+    example_ $ "sym" @@@ TermNat @@ 3 + 1 @@ 1 + 3 @@ Refl
+
+    section_ "Transitivity"
+
+    define_ "TRANS"
+        $$ sort_ typeSort ~> sort_ typeSort
+        $$ lam_ "A" (pi_ "x" "A" $ pi_ "y" "A" $ pi_ "z" "A" $ Equality "A" "x" "y" ~> Equality "A" "y" "z" ~> Equality "A" "x" "z")
+
+    define_ "trans"
+        $$ forall_"A" ("TRANS" @@ "A")
+        $$ lams_ ["A","x","y","z","p"]
+            (Inf $ j_ "u" "v" "w" "A" (Equality "A" "v" "z" ~> Equality "A" "u" "z") (lams_ ["_", "r"] "r") "x" "y" "p")
+
+    example_ $ "trans" @@@ TermNat @@ 1 + 3 @@ 2 + 2 @@ 3 + 1 @@ Refl
+
+-- |
+--
+-- >>> runLoud $ spec_ CoCStar >> leibnizScript
+-- -- 1. Leibniz
+-- -------------
+-- --
+-- -- We can define Leibniz equality
+-- -- in the systems with impredicative bottom universe.
+-- -- TODO: define CComega, and make conversions
+-- λ» :define Leibniz
+-- : ∀ A → A → A → ⋆ = λ A x y → ∏ (C : (A → ⋆)) → C x → C y
+-- --
+-- -- 1.1. Reflexivity
+-- --
+-- λ» :define REFL : ⋆ → ⋆ = λ A → ∏ (x : A) → Leibniz A x x
+-- λ» :define refl₁ : ∀ A → REFL A = λ A x C Cx → Cx
+-- --
+-- -- 1.2. Symmetry
+-- --
+-- λ» :define SYM : ⋆ → ⋆ = λ A → ∏ (x : A) →
+--                                ∏ (y : A) →
+--                                Leibniz A x y →
+--                                Leibniz A y x
+-- λ» :define sym
+-- : ∀ A → SYM A = λ A x y xy → xy (λ z → Leibniz A z x)
+--                                 (refl₁ A x)
+-- --
+-- -- 1.3. Transitivity
+-- --
+-- -- An exercise!
+-- ∎
+--
+leibnizScript :: forall s m. Script s m => m ()
+leibnizScript = do
+    section_ "Leibniz"
+
+    comment_ "We can define Leibniz equality"
+    comment_ "in the systems with impredicative bottom universe."
+    comment_ "TODO: define CComega, and make conversions"
+
+    define_ "Leibniz"
+        $$ pi_ "A" (sort_ typeSort) ("A" ~> "A" ~> sort_ typeSort)
+        -- TODO: change last @@ to ~>, improve error message
+        $$ lams_ ["A","x","y"] (pi_ "C" ("A" ~> sort_ typeSort) $ "C" @@ "x" ~> "C" @@ "y")
+
+    subsection_ "Reflexivity"
+
+    define_ "REFL"
+        $$ sort_ typeSort ~> sort_ typeSort
+        $$ lam_ "A" (pi_ "x" "A" $ "Leibniz" @@ "A" @@ "x" @@ "x")
+
+    define_ "refl1"
+        $$ forall_ "A" ("REFL" @@ "A")
+        $$ lams_ ["A","x","C","Cx"] "Cx"
+
+    subsection_ "Symmetry"
+
+    define_ "SYM"
+        $$ sort_ typeSort ~> sort_ typeSort
+        $$ lam_ "A" (pi_ "x" "A" $ pi_ "y" "A" $ "Leibniz" @@ "A" @@ "x" @@ "y" ~> "Leibniz" @@ "A" @@ "y" @@ "x")
+
+    define_ "sym"
+        $$ forall_ "A" ("SYM" @@ "A")
+        $$ lams_ ["A","x","y","xy"]
+            ("xy" @@ lam_ "z" ("Leibniz" @@ "A" @@ "z" @@ "x") @@ ("refl1" @@ "A" @@ "x"))
+
+    subsection_ "Transitivity"
+
+    comment_ "An exercise!"
 
 #endif
 
