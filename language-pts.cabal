@@ -68,13 +68,8 @@ flag nat-prim
   manual:  True
   default: False
 
-flag eta
-  description: Perform eta-conversion in @eval_@
-  manual:  True
-  default: False
-
-flag fix
-  description: Add @fix@ combinator to the type-system. Fix breaks everything :) /Only @Value@ implemented/.
+flag quarks
+  description: Add /quarks/ primitives.
   manual:  True
   default: False
 
@@ -104,11 +99,8 @@ library
   if flag(prop)
     cpp-options: -DLANGUAGE_PTS_HAS_PROP
 
-  if flag(eta)
-    cpp-options: -DLANGUAGE_PTS_HAS_ETA
-
-  if flag(fix)
-    cpp-options: -DLANGUAGE_PTS_HAS_FIX
+  if flag(quarks)
+    cpp-options: -DLANGUAGE_PTS_HAS_QUARKS
 
   build-depends:
     , base            ^>=4.10.1.0 || ^>=4.11.1.0 || ^>=4.12.0.0
@@ -149,6 +141,7 @@ library
     Language.PTS.Examples.Identity
     Language.PTS.Examples.Naturals
     Language.PTS.Examples.Sigma
+    Language.PTS.Examples.Quarks
 
     Text.Show.Extras
 

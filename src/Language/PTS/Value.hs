@@ -49,6 +49,10 @@ module Language.PTS.Value (
     valueTimes,
 #endif
 #endif
+#if LANGUAGE_PTS_HAS_QUARKS
+    -- * Quarks
+    valueQuarkElim,
+#endif
     -- * Pretty-printing
     pppIntro,
     pppElim,
@@ -70,6 +74,14 @@ import Language.PTS.Sym
 
 #ifdef LANGUAGE_PTS_HAS_NAT
 import Numeric.Natural
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+import Data.Set (Set)
+import Data.Map (Map)
+
+import qualified Data.Set as Set
+import qualified Data.Map as Map
 #endif
 
 -- | 'Value' is in the normal form.
@@ -143,8 +155,7 @@ data ValueIntro err s a
     | ValueTrue
       -- ^ True.
     | ValueFalse
-      -- % False.
-
+      -- ^ False.
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_NAT
@@ -156,6 +167,13 @@ data ValueIntro err s a
       -- ^ Nat successor
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    | ValueHadron (Set Sym)
+      -- ^ Hadron (collection of quarks) type.
+
+    | ValueQuark Sym
+      -- ^ Quark.
+#endif
   deriving (Functor, Foldable, Traversable)
 
 -- | 'ValueElim' is extracted from a hypothesis, \(A\!\downarrow\).
@@ -211,6 +229,7 @@ data ValueElim err s a
 #endif
 #endif
 
+
 #ifdef LANGUAGE_PTS_HAS_NAT
     -- | Natural number elimination
     | ValueNatElim IrrSym (Scope IrrSym (ValueIntro err s) a) (ValueIntro err s a) (ValueIntro err s a) (ValueElim err s a)
@@ -222,6 +241,11 @@ data ValueElim err s a
     -- | Natural number multiplication
     | ValueTimes (ValueElim err s a) (ValueElim err s a)
 #endif
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    -- | Hadron elimination.
+    | ValueQuarkElim IrrSym (Scope IrrSym (ValueIntro err s) a) (Map Sym (ValueIntro err s a)) (ValueElim err s a)
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_FIX
@@ -284,6 +308,11 @@ instance (PrettyPrec err,  AsErr err, Specification s) => Monad (ValueIntro err 
     ValueNatS n    >>= k = ValueNatS (n >>= k)
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    ValueHadron ls >>= _ = ValueHadron ls
+    ValueQuark l   >>= _ = ValueQuark l
+#endif
+
 
 valueAppBind
     :: (PrettyPrec err, AsErr err, Specification s)
@@ -337,6 +366,11 @@ valueAppBind (ValueTimes x y) k =
 #endif
 #endif
 
+#if LANGUAGE_PTS_HAS_QUARKS
+valueAppBind (ValueQuarkElim x p ls l) k =
+    valueQuarkElim x (p >>>= k) (fmap (>>= k) ls) (valueAppBind l k)
+#endif
+
 #if LANGUAGE_PTS_HAS_FIX
 valueAppBind (ValueFix f) k = case valueAppBind f k of
     ValueCoerce f'     -> ValueCoerce (ValueFix f')
@@ -355,40 +389,40 @@ instance (PrettyPrec err, AsErr err, Specification s) => Monad (ValueElim err s)
     ValueVar x   >>= k = k x
     ValueApp f x >>= k = ValueApp (f >>= k) (valueBind x k)
 
-#if LANGUAGE_PTS_HAS_SIGMA
+#ifdef LANGUAGE_PTS_HAS_SIGMA
     ValueMatch p x y b >>= k = ValueMatch (p >>= k) x y
-        (toScope $ valueBind (fromScope b) $ unvar (return . B) (fmap F . k))
+        (valueBindScope b k)
 #endif
 
-#if LANGUAGE_PTS_HAS_EQUALITY
+#ifdef LANGUAGE_PTS_HAS_EQUALITY
     ValueJ v3 a p r u v w >>= k = ValueJ v3
         (valueBind a k)
-        (toScope $ valueBind (fromScope p) $ unvar (return . B) (fmap F . k))
+        (valueBindScope p k)
         (valueBind r k)
         (valueBind u k)
         (valueBind v k)
         (w >>= k)
 #endif
 
-#if LANGUAGE_PTS_HAS_PROP
+#ifdef LANGUAGE_PTS_HAS_PROP
     ValueAbsurd a x >>= k = ValueAbsurd (valueBind a k) (x >>= k)
 #endif
 
-#if LANGUAGE_PTS_HAS_BOOL
+#ifdef LANGUAGE_PTS_HAS_BOOL
     ValueBoolElim x a t f b >>= k = ValueBoolElim x
-        (toScope $ valueBind (fromScope a) $ unvar (return . B) (fmap F . k))
+        (valueBindScope a k)
         (valueBind t k)
         (valueBind f k)
         (b >>= k)
 
-#if LANGUAGE_PTS_HAS_BOOL_PRIM
+#ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
     ValueAnd x y >>= k = ValueAnd (x >>= k) (y >>= k)
 #endif
 #endif
 
-#if LANGUAGE_PTS_HAS_NAT
+#ifdef LANGUAGE_PTS_HAS_NAT
     ValueNatElim x a z s n >>= k = ValueNatElim x
-        (toScope $ valueBind (fromScope a) $ unvar (return . B) (fmap F . k))
+        (valueBindScope a k)
         (valueBind z k)
         (valueBind s k)
         (n >>= k)
@@ -399,11 +433,25 @@ instance (PrettyPrec err, AsErr err, Specification s) => Monad (ValueElim err s)
 #endif
 #endif
 
-#if LANGUAGE_PTS_HAS_FIX
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    ValueQuarkElim x p ls l >>= k = ValueQuarkElim x
+        (valueBindScope p k)
+        (fmap (`valueBind` k) ls)
+        (l >>= k)
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_FIX
     ValueFix f >>= k = ValueFix (f >>= k)
 #endif
 
---    ValueNatS n >>= k = ValueNatS (n >>= k)
+#if defined(LANGUAGE_PTS_HAS_SIGMA) || defined(LANGUAGE_PTS_HAS_EQUALITY) || defined(LANGUAGE_PTS_HAS_BOOL) || defined(LANGUAGE_PTS_HAS_NAT) || defined(LANGUAGE_PTS_HAS_QUARKS)
+valueBindScope
+    :: (AsErr err, Specification s, PrettyPrec err)
+    => Scope n (ValueIntro err s) a
+    -> (a -> ValueElim err s b)
+    -> Scope n (ValueIntro err s) b
+valueBindScope s k = toScope $ valueBind (fromScope s) $ unvar (return . B) (fmap F . k)
+#endif
 
 instance (PrettyPrec err, AsErr err, Specification s) => Module (ValueIntro err s) (ValueElim err s) where
     (>>==) = valueBind
@@ -448,6 +496,11 @@ valueBInd (ValueAnd x y) k = ValueAnd (x >>= ValueCoerce . k) (y >>= ValueCoerce
 valueBind ValueNat        _ = ValueNat
 valueBind ValueNatZ       _ = ValueNatZ
 valueBind (ValueNatS n)   k = ValueNatS (n >>= ValueCoerce . k)
+#endif
+
+#if LANGUAGE_PTS_HAS_QUARKS
+valueBind (ValueHadron ls) _ = ValueHadron ls
+valueBind (ValueQuark l)   _ = ValueQuark l
 #endif
 
 pureValueIntro :: a -> ValueIntro err s a
@@ -577,6 +630,29 @@ valueTimes x y = ValueErr $ review _Err $ ApplyPanic "ℕ-times" $ ppp0 (void x,
 #endif
 
 -------------------------------------------------------------------------------
+-- Hadron
+-------------------------------------------------------------------------------
+
+#if LANGUAGE_PTS_HAS_QUARKS
+valueQuarkElim
+    :: (Specification s, AsErr err, PrettyPrec err)
+    => IrrSym
+    -> Scope IrrSym (ValueIntro err s) a
+    -> Map Sym (ValueIntro err s a)
+    -> ValueIntro err s a
+    -> ValueIntro err s a
+valueQuarkElim x p ls = go where
+    go (ValueCoerce l) = ValueCoerce (ValueQuarkElim x p ls l)
+    go (ValueErr err)  = ValueErr err
+    go (ValueQuark l)
+        | Just v <- Map.lookup l ls = v
+        -- TODO: make better error
+        | otherwise = ValueErr $ review _Err $ SomeErr $ show (l, Map.keys ls)
+    go l               = ValueErr $ review _Err $
+        ApplyPanic "L-elim" $ ppp0 (void l)
+#endif
+
+-------------------------------------------------------------------------------
 -- Dependent pair
 -------------------------------------------------------------------------------
 
@@ -686,6 +762,11 @@ traverseErrValueIntro _ ValueNatZ     = pure ValueNatZ
 traverseErrValueIntro f (ValueNatS n) = ValueNatS <$> traverseErrValueIntro f n
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+traverseErrValueIntro _ (ValueHadron ls) = pure (ValueHadron ls)
+traverseErrValueIntro _ (ValueQuark l)   = pure (ValueQuark l)
+#endif
+
 
 traverseErrValueElim :: Applicative f => (err -> f err') -> ValueElim err s a -> f (ValueElim err' s a)
 traverseErrValueElim _ (ValueVar a)   = pure (ValueVar a)
@@ -745,6 +826,13 @@ traverseErrValueElim g (ValueTimes x y) = ValueTimes
     <$> traverseErrValueElim g x
     <*> traverseErrValueElim g y
 #endif
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+traverseErrValueElim f (ValueQuarkElim x p ls l) = ValueQuarkElim x
+    <$> transverseScope (traverseErrValueIntro f) p
+    <*> traverse (traverseErrValueIntro f) ls
+    <*> traverseErrValueElim  f l
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_FIX
@@ -831,6 +919,15 @@ instance (Show s, Show err) => Show1 (ValueIntro err s) where
         "ValueNatS" d x
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    liftShowsPrec _ _ d (ValueHadron ls) = showsUnaryWith
+        showsPrec
+        "ValueHadron" d (Set.toList ls)
+
+    liftShowsPrec _ _ d (ValueQuark l) = showsUnaryWith
+        showsPrec
+        "ValueQuark" d l
+#endif
 
 instance (Show s, Show err) => Show1 (ValueElim err s) where
     liftShowsPrec sp _ d (ValueVar x) =
@@ -905,6 +1002,15 @@ instance (Show s, Show err) => Show1 (ValueElim err s) where
 #endif
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    liftShowsPrec sp sl d (ValueQuarkElim x p ls l) = showsQuadWith
+        showsPrec
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "ValueQuarkElim" d x p (P $ Map.toList ls) l
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_FIX
     liftShowsPrec sp sl d (ValueFix x) = showsUnaryWith
         (liftShowsPrec sp sl)
@@ -964,6 +1070,11 @@ instance Eq s => Eq1 (ValueIntro err s) where
     liftEq _  ValueNat      ValueNat       = True
     liftEq _  ValueNatZ     ValueNatZ      = True
     liftEq eq (ValueNatS n) (ValueNatS n') = liftEq eq n n'
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    liftEq _ (ValueHadron ls) (ValueHadron ls') = ls == ls'
+    liftEq _ (ValueQuark l)   (ValueQuark l')   = l == l'
 #endif
 
     -- catch all case: False
@@ -1026,6 +1137,13 @@ instance Eq s => Eq1 (ValueElim err s) where
         liftEq eq x x' &&
         liftEq eq y y'
 #endif
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    liftEq eq (ValueQuarkElim _ p ls l) (ValueQuarkElim _ p' ls' l') =
+        liftEq eq p p' &&
+        liftEq (liftEq eq) ls ls' &&
+        liftEq eq l l'
 #endif
         
     -- catch all case: False
@@ -1092,6 +1210,10 @@ pppIntro d (ValueNatS n)
         [pppIntro PrecApp n]
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+pppIntro _ (ValueHadron ls) = pppHadron ls
+pppIntro _ (ValueQuark l)   = pppQuark l
+#endif
 
 
 pppPeelLam :: (Specification s, PrettyPrec err) => ValueIntro err s Doc -> PrettyM ([Doc], PrettyM Doc)
@@ -1204,6 +1326,13 @@ pppElim d (ValueTimes x y) = pppApplication d
     , pppElim PrecApp y
     ]
 #endif
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+pppElim d (ValueQuarkElim x p qs q) = pppQuarkElim d x 
+    (\xDoc -> pppIntro PrecLambda $ instantiate1return xDoc p)
+    (fmap (pppIntro PrecApp) qs)
+    (pppElim PrecApp q)
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_FIX

@@ -1,5 +1,7 @@
 module Text.Show.Extras where
 
+import Data.Functor.Classes (Show1 (..))
+
 showsTernaryWith
     :: (Int -> a -> ShowS)
     -> (Int -> b -> ShowS)
@@ -53,3 +55,11 @@ showsQuintWith sp1 sp2 sp3 sp4 sp5 n d x y z u v = showParen (d > 10)
     . sp4 11 u
     . showChar ' '
     . sp5 11 v
+
+newtype P a f b = P [(a, f b)]
+
+instance (Show a, Show1 f) => Show1 (P a f) where
+    liftShowsPrec sp sl d (P xs) = liftShowsPrec
+        (liftShowsPrec (liftShowsPrec sp sl) (liftShowList sp sl))
+        (liftShowList (liftShowsPrec sp sl) (liftShowList sp sl))
+        d xs

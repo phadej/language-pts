@@ -84,6 +84,11 @@ quoteIntro ValueNatZ     = Inf TermNatZ
 quoteIntro (ValueNatS n) = Inf $ TermNatS (quote_ n)
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+quoteIntro (ValueHadron qs) = Inf (Hadron qs)
+quoteIntro (ValueQuark q)   = Quark q
+#endif
+
 unsafeChkToInf :: Specification s => TermChk s a -> TermInf s a
 unsafeChkToInf (Inf u) = u
 unsafeChkToInf t       = Ann t (sort_ star_) -- this can be an `error`
@@ -136,6 +141,13 @@ quoteElim (ValueNatElim x p s z n) = TermNatElim x
 quoteElim (ValuePlus x y)  = TermPlus  (Inf $ quoteElim x) (Inf $ quoteElim y)
 quoteElim (ValueTimes x y) = TermTimes (Inf $ quoteElim x) (Inf $ quoteElim y)
 #endif
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+quoteElim (ValueQuarkElim x p qs q) = QuarkElim x
+    (quoteScopeInf p)
+    (fmap quote_ qs)
+    (Inf $ quoteElim q)
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_FIX

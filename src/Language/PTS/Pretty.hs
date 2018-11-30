@@ -88,11 +88,16 @@ module Language.PTS.Pretty (
     pppLambda,
     pppAnnotation,
     pppAnnotationPi,
+    -- * Hadron
+    pppHadron,
+    pppQuark,
+    pppQuarkElim,
     -- * Precedence
     Prec (..),
     predPrec,
     ) where
 
+import Control.Lens (itraverse)
 import Bound.Name                 (Name (..))
 import Bound.Var                  (Var (..))
 import Control.Applicative        (liftA2)
@@ -106,6 +111,7 @@ import Data.Void                  (Void, absurd)
 import qualified Control.Unification        as U
 import qualified Control.Unification.IntVar as U
 import qualified Data.Set                   as Set
+import qualified Data.Map                   as Map
 import qualified Text.PrettyPrint.Compact   as PP
 
 import Language.PTS.Sym
@@ -219,6 +225,8 @@ pppFreshSym (Sym s) = PrettyM $ do
 -- x (\x₁...) x₁
 --
 pppScopedSym :: Sym -> (Doc -> PrettyM a) -> PrettyM a
+pppScopedSym (Sym s) f
+    | s == pack "_"    = f (PP.char '_')
 pppScopedSym (Sym s) f = PrettyM $ do
     xs <- get
     let u = freshU xs (genU (toU s))
@@ -362,6 +370,39 @@ pppPiPart (PPForall n)  = pppChar '∀' <+> return n
 pppPiPart (PPArrow n)   = n
 pppPiPart (PPExists n)  = pppChar 'E' <+> return n
 pppPiPart (PPSigma n t) = pppChar '∑' <+> pppParens True (return n <+> pppColon <+> t)
+
+-------------------------------------------------------------------------------
+-- Hadron
+-------------------------------------------------------------------------------
+
+pppHadron :: Set.Set Sym -> PrettyM Doc
+pppHadron s
+    | null s    = pure (PP.braces mempty)
+    | otherwise = PP.braces . PP.hsep <$> traverse pppQuark s'
+  where
+    s' = Set.toList s
+
+pppQuark :: Sym -> PrettyM Doc
+pppQuark (Sym t) = pppText $ ':' : unpack t
+
+pppQuarkElim
+    :: Prec
+    -> IrrSym
+    -> (Doc -> PrettyM Doc)
+    -> Map.Map Sym (PrettyM Doc)
+    -> PrettyM Doc
+    -> PrettyM Doc
+pppQuarkElim d x p qs q = pppApplication d
+    (pppText "ℚ-elim")
+    [ pppScopedIrrSym x $ \xDoc -> pppLambda PrecApp [xDoc] $ p xDoc
+    , q
+    , cases
+    ]
+  where
+    cases | null qs   = pure (PP.braces pppArrow_)
+          | otherwise = PP.semiBraces . Map.elems <$> itraverse case_ qs
+
+    case_ k v = pppQuark k <+> pppArrow <+> v
 
 -------------------------------------------------------------------------------
 -- Combinators

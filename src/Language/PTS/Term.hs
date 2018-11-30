@@ -26,6 +26,14 @@ import Language.PTS.Sym
 import Numeric.Natural
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+import Data.Set (Set)
+import Data.Map (Map)
+
+import qualified Data.Set as Set
+import qualified Data.Map as Map
+#endif
+
 -------------------------------------------------------------------------------
 -- Terms
 -------------------------------------------------------------------------------
@@ -210,22 +218,22 @@ data TermInf s a
     -- /Note:/ \(\mathbb{B}\mathsf{-elim}\) is universe-polymorphic.
     --
     -- \[ \frac
-      -- {\array{
-      --  \color{darkblue}{\Gamma, x : \mathbb{B}} \vdash \color{darkgreen}P \Rightarrow \color{darkred}{s}
-      --  \qquad
-      --  (\star, s, s') \in \mathcal{R}
-      --  \cr
-      --  P[x \mapsto \mathsf{True}] \leadsto \tau \qquad
-      --  \color{darkblue}\Gamma \vdash \color{darkgreen}t \Leftarrow \color{darkred}{\tau}
-      --  \cr
-      --  P[x \mapsto \mathsf{False}] \leadsto \tau' \qquad
-      --  \color{darkblue}\Gamma \vdash \color{darkgreen}f \Leftarrow \color{darkred}{\tau'}
-      --  \cr
-      --  \color{darkblue}\Gamma \vdash \color{darkgreen}b \Leftarrow \color{darkred}{\mathbb{B}}
-      --  \qquad
-      --  P[x \mapsto b] \leadsto \sigma
-      -- }}
-      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}\mathsf{-elim}\,(\lambda\, x \to P) \,t\,f\,b} \Rightarrow \color{darkred}{\sigma} }
+    -- {\array{
+    --  \color{darkblue}{\Gamma, x : \mathbb{B}} \vdash \color{darkgreen}P \Rightarrow \color{darkred}{s}
+    --  \qquad
+    --  (\star, s, s') \in \mathcal{R}
+    --  \cr
+    --  P[x \mapsto \mathsf{True}] \leadsto \tau \qquad
+    --  \color{darkblue}\Gamma \vdash \color{darkgreen}t \Leftarrow \color{darkred}{\tau}
+    --  \cr
+    --  P[x \mapsto \mathsf{False}] \leadsto \tau' \qquad
+    --  \color{darkblue}\Gamma \vdash \color{darkgreen}f \Leftarrow \color{darkred}{\tau'}
+    --  \cr
+    --  \color{darkblue}\Gamma \vdash \color{darkgreen}b \Leftarrow \color{darkred}{\mathbb{B}}
+    --  \qquad
+    --  P[x \mapsto b] \leadsto \sigma
+    -- }}
+    -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{B}\mathsf{-elim}\,(\lambda\, x \to P) \,t\,f\,b} \Rightarrow \color{darkred}{\sigma} }
     -- \]
     | TermBoolElim IrrSym (ScopeInf IrrSym s a) (TermChk s a) (TermChk s a) (TermChk s a)
 
@@ -248,8 +256,6 @@ data TermInf s a
 #ifdef LANGUAGE_PTS_HAS_NAT
     | TermNat
       -- ^ Natural numbers.
-      --
-      -- We assume they are type. (Or we could parametrise them by sort!)
       --
       -- \[\frac
       -- {\star \in \mathcal{S}}
@@ -277,23 +283,23 @@ data TermInf s a
     -- Here we have to assume the target sort (or parametrise further!).
     --
     -- \[ \frac
-      -- {\array{
-      --  \color{darkblue}{\Gamma, x : \mathbb{N}} \vdash \color{darkgreen}P \Leftarrow \color{darkred}{s}
-      --  \qquad
-      --  (\star, s, s') \in \mathcal{R}
-      --  \cr
-      --  P[x \mapsto \mathsf{Zero}] \leadsto \tau \qquad
-      --  \color{darkblue}\Gamma \vdash \color{darkgreen}z \Leftarrow \color{darkred}{\tau}
-      --  \cr
-      --  \prod (l : \mathbb{N}) \to P[x \mapsto l] \to P[x \mapsto \mathsf{Succ}\,l]
-      --  \leadsto \tau' \qquad
-      --  \color{darkblue}\Gamma \vdash \color{darkgreen}s \Leftarrow \color{darkred}{\tau'}
-      --  \cr
-      --  \color{darkblue}\Gamma \vdash \color{darkgreen}n \Leftarrow \color{darkred}{\mathbb{N}}
-      --  \qquad
-      --  P[x \mapsto n] \leadsto \sigma
-      -- }}
-      -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{N}\mathsf{-elim}\,(\lambda\, x \to p)\,z\,s\,n} \Rightarrow \color{darkred}{\sigma} }
+    -- {\array{
+    --  \color{darkblue}{\Gamma, x : \mathbb{N}} \vdash \color{darkgreen}P \Leftarrow \color{darkred}{s}
+    --  \qquad
+    --  (\star, s, s') \in \mathcal{R}
+    --  \cr
+    --  P[x \mapsto \mathsf{Zero}] \leadsto \tau \qquad
+    --  \color{darkblue}\Gamma \vdash \color{darkgreen}z \Leftarrow \color{darkred}{\tau}
+    --  \cr
+    --  \prod (l : \mathbb{N}) \to P[x \mapsto l] \to P[x \mapsto \mathsf{Succ}\,l]
+    --  \leadsto \tau' \qquad
+    --  \color{darkblue}\Gamma \vdash \color{darkgreen}s \Leftarrow \color{darkred}{\tau'}
+    --  \cr
+    --  \color{darkblue}\Gamma \vdash \color{darkgreen}n \Leftarrow \color{darkred}{\mathbb{N}}
+    --  \qquad
+    --  P[x \mapsto n] \leadsto \sigma
+    -- }}
+    -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{N}\mathsf{-elim}\,(\lambda\, x \to p)\,z\,s\,n} \Rightarrow \color{darkred}{\sigma} }
     -- \]
     | TermNatElim IrrSym (ScopeInf IrrSym s a) (TermChk s a) (TermChk s a) (TermChk s a)
 
@@ -323,6 +329,54 @@ data TermInf s a
     -- \]
     | TermTimes (TermChk s a) (TermChk s a)
 #endif
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    -- | Hadron type.
+    --
+    -- In physics, /quarks/ combine to form composite particles called /hadrons/.
+    -- In our type system(s) /quark/ combine to form types.
+    -- Hadrons are /finite sets/ (enumerations).
+    --
+    -- We call single quark hadrons /atoms/.
+    -- This is not true in physics, but we do get lisp-like atoms this way;
+    -- i.e. things which are equal to itself only.
+    -- But we agree with modern physics: atoms are not indivisible.
+    --
+    -- \[\frac
+    -- {\star \in \mathcal{S}}
+    -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\{\overline{:\!\!q}\}} \Rightarrow \color{darkred}\star }
+    -- \]
+    | Hadron (Set Sym)
+
+
+    -- | Quark elimination.
+    --
+    -- The rule is not the same as in /PiSigma/ label (which influenced quark design).
+    -- There the rule is checkable, but we have to provide a motive.
+    --
+    -- /Note:/ here we infer the type of hadron from the match clauses.
+    -- That way we get exhautivity check.
+    --
+    -- The /real/ reason for the quark name is because \(\mathbb{Q}\) is better supported in fonts, than e.g. \(\mathbb{L}\).
+    --
+    -- \[ \frac
+    -- {\array{
+    --  \color{darkblue}{\Gamma, x : \{\overline{:\!\!q}\}} \vdash \color{darkgreen}P \Rightarrow \color{darkred}{s}
+    --  \qquad
+    --  (\star, s, s') \in \mathcal{R}
+    --  \cr
+    --  P[x \mapsto :\!\!q_i] \leadsto \tau_i
+    --  \qquad
+    --  \color{darkblue}\Gamma \vdash \color{darkgreen}{u_i} \Leftarrow \color{darkred}{\tau_i}
+    --  \cr
+    --  \color{darkblue}\Gamma \vdash \color{darkgreen}t \Leftarrow \color{darkred}{\{\overline{:\!\!q}\}}
+    --  \qquad
+    --  P[x \mapsto t] \leadsto \sigma
+    -- }}
+    -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{\mathbb{Q}\mathsf{-elim}\,(\lambda\, x \to P)\;\{\overline{:\!\!q \longrightarrow u}\}\;t} \Rightarrow \color{darkred}{\sigma} }
+    -- \]
+    | QuarkElim IrrSym (ScopeInf IrrSym s a) (Map Sym (TermChk s a)) (TermChk s a)
 #endif
 
   deriving (Functor, Foldable, Traversable)
@@ -400,6 +454,23 @@ data TermChk s a
     | Absurd (TermChk s a)
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    -- | Single quark.
+    --
+    -- Compare to Booleans: 'TermTrue' and 'TermFalse'.
+    -- Here we don't know the type of hadron a quark belongs to, we must check it;
+    -- On the other hand, Boolean literals are inferrable.
+    --
+    -- Quarks are prefixed with a colon, to syntatically distinguish them.
+    --
+    -- \[\frac
+    -- {:\!\!x \in \overline{:\!\!q}}
+    -- {\color{darkblue}\Gamma \vdash \color{darkgreen}{:\!\!x} \Leftarrow \color{darkred}{\{\overline{:\!\!q}\}} }
+    -- \]
+
+    | Quark Sym
+#endif
+
   deriving (Functor, Foldable, Traversable)
 
 -------------------------------------------------------------------------------
@@ -443,6 +514,12 @@ instance Show s => Show1 (TermChk s) where
     liftShowsPrec sp sl d (Absurd x) = showsUnaryWith
         (liftShowsPrec sp sl)
         "Absurd" d x
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    liftShowsPrec _ _ d (Quark q) = showsUnaryWith
+        showsPrec
+        "Quark" d q
 #endif
 
 instance Show s => Show1 (TermInf s) where
@@ -547,6 +624,19 @@ instance Show s => Show1 (TermInf s) where
 #endif
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    liftShowsPrec _ _ d (Hadron qs) = showsUnaryWith
+        showsPrec
+        "Hadron" d (Set.toList qs)
+
+    liftShowsPrec sp sl d (QuarkElim x p qs q) = showsQuadWith
+        showsPrec
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "QuarkElim" d x p (P $ Map.toList qs) q
+#endif
+
 instance (Show a, Show s) => Show (TermInf s a) where showsPrec = showsPrec1
 instance (Show a, Show s) => Show (TermChk s a) where showsPrec = showsPrec1
 
@@ -647,6 +737,14 @@ pppInf d (TermTimes x y) = pppApplication d
 #endif
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+pppInf _ (Hadron qs) = pppHadron qs
+pppInf d (QuarkElim x p qs q) = pppQuarkElim d x
+    (\xDoc -> pppInf PrecLambda $ instantiate1Hreturn xDoc p)
+    (fmap (pppChk PrecApp) qs)
+    (pppChk PrecApp q)
+#endif
+
 pppPeelPi :: Specification s => TermInf s Doc -> PrettyM ([PPPi], PrettyM Doc)
 pppPeelPi (Pi n a b)
     | Just b' <- unusedScopeH b = do
@@ -726,6 +824,10 @@ pppChk d (Absurd x) = pppApplication d
     (pppText "absurd") [ pppChk PrecApp x ]
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+pppChk _ (Quark q) = pppQuark q
+#endif
+
 instance (Specification s, PrettyPrec a) => PrettyPrec (TermInf s a) where ppp = ppp1
 instance (Specification s, PrettyPrec a) => PrettyPrec (TermChk s a)  where ppp = ppp1
 
@@ -792,6 +894,14 @@ instance Monad (TermInf s) where
 #endif
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    Hadron qs >>= _ = Hadron qs
+    QuarkElim x p qs q >>= k = QuarkElim x
+        (p >>== k)
+        (fmap (>>== k) qs)
+        (q >>== k)
+#endif
+
 instance Module (TermChk s) (TermInf s) where
     Inf u   >>== k = Inf (u >>= k)
     Lam n b >>== k = Lam n (b >>== k)
@@ -807,6 +917,10 @@ instance Module (TermChk s) (TermInf s) where
 
 #ifdef LANGUAGE_PTS_HAS_PROP
     Absurd x >>== k = Absurd (x >>== k)
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    Quark q >>== _ = Quark q 
 #endif
 
 instance Module (TermInf s) (TermInf s) where
