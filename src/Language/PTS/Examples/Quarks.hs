@@ -248,10 +248,10 @@ monadScript = do
         $$ pi_ "M" (sort_ typeSort ~> sort_ typeSort) ("Monad" @@ "M" ~> forall_ "A" ("M" @@ "A" ~> "M" @@@ Unit))
         $$ lams_ ["M","$M","A","m"] ("$M" @@ Quark "fmap" @@ "A" @@@ Unit @@ lam_ "_" (Inf I) @@ "m")
 
-    example_ $ "void" @@ "Identity" @@ "MonadIdentity" @@ forall_ "X" ("X" ~> "X") @@ lams_ ["X","x"] "x"
+    example_ $ apps_ "void" ["Identity", "MonadIdentity", forall_ "X" ("X" ~> "X"), lams_ ["X","x"] "x"]
 
     defineInf_ "env" (hadron_ ["foo", "bar"])
-    example_ $ "void" @@ ("Reader" @@ "env") @@ ("MonadReader" @@ "env") @@ "env" @@ lam_ "e" "e"
+    example_ $ apps_ "void" ["Reader" @@ "env", "MonadReader" @@ "env", "env", lam_ "e" "e"]
 
 -- $setup
 -- >>> :seti -XOverloadedStrings -XTypeApplications
