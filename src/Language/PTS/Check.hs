@@ -17,6 +17,13 @@ import Language.PTS.Value
 import Language.PTS.Smart
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+import Control.Lens (ifor)
+
+import qualified Data.Set as Set
+import qualified Data.Map as Map
+#endif
+
 -------------------------------------------------------------------------------
 -- Type-checker
 -------------------------------------------------------------------------------
@@ -157,13 +164,13 @@ rtype_ ts ctx term = case term of
         -- Check n first, even we have it latter in the rule.
         n' <- rcheck_ ts' ctx n ValueNat
 
-        let as = typeSort -- sort of Natural numbers
-
-        -- check sorts
+        -- check motive
         let pp   = fromScopeH p
         (pp', bs) <- rsort_ ts' (addContext ValueNat ctx) pp
         let p' = toScope pp'
 
+        -- check sorts
+        let as = typeSort -- sort of Natural numbers
         case rule as bs of
             Nothing -> throwErr $ NoRule (ppp0 as) (ppp0 bs) ts
             Just _  -> pure ()
@@ -187,6 +194,35 @@ rtype_ ts ctx term = case term of
         return (valueTimes x' y', ValueNat)
 #endif
 #endif
+
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    Hadron qs -> return (ValueHadron qs, ValueSort typeSort)
+
+    QuarkElim x p qs q -> do
+        let qt :: Set.Set Sym
+            qt = Map.keysSet qs
+
+        let qt' = ValueHadron qt
+
+        q' <- rcheck_ ts' ctx q qt'
+
+        -- check motive
+        let pp = fromScopeH p
+        (pp', bs) <- rsort_ ts' (addContext qt' ctx) pp
+        let p' = toScope pp'
+
+        -- check sorts
+        let as = typeSort -- sort of quarks
+        case rule as bs of
+            Nothing -> throwErr $ NoRule (ppp0 as) (ppp0 bs) ts
+            Just _  -> pure ()
+
+        qs' <- ifor qs $ \k v ->
+            rcheck_ ts' ctx v $ instantiate1 (ValueQuark k) p'
+
+        return (valueQuarkElim x p' qs' q', instantiate1 q' p')
+#endif
+
   where
     ts' :: [PrettyM Doc]
     ts' = ppp0 term : ts
@@ -271,6 +307,13 @@ rcheck_ ts ctx term t = case term of
         return (valueAbsurd t x')
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+    Quark q -> case t of
+        ValueHadron qs
+            | Set.member q qs -> return (ValueQuark q)
+            | otherwise       -> throwErr $ QuarkNotInHadron q qs ts
+        _ -> throwErr $ QuarkNotHadron q (ppp0 t) ts
+#endif
   where
     ts' :: [PrettyM Doc]
     ts' = ppp0 term : ts

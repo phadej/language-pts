@@ -31,6 +31,18 @@ instance ValueConv ValueElim where
     toValueIntro = ValueCoerce
 
 -------------------------------------------------------------------------------
+-- Conv
+-------------------------------------------------------------------------------
+
+class Convert u v | v -> u where
+    convert :: u s a -> v s a
+
+instance Convert TermInf TermInf where convert = id
+instance Convert TermInf TermChk where convert = Inf
+
+instance Convert (ValueIntro err) (ValueIntro err) where convert = id
+
+-------------------------------------------------------------------------------
 -- App
 -------------------------------------------------------------------------------
 
@@ -60,11 +72,14 @@ f @@@ x = fromTermInf (App f (toTermChk x))
 infixr 1 -:-
 infixr 2 ~>
 
+apps_ :: CanApp u v u => u s a -> [v s a] -> u s a
+apps_ = foldl (@@)
+
 -------------------------------------------------------------------------------
 -- Pi
 -------------------------------------------------------------------------------
 
-class CanPi u v | v -> u where
+class Convert u v => CanPi u v | v -> u where
     pi_ :: Sym -> u s Sym -> u s Sym -> v s Sym
 
     -- | non-dependent function space.
@@ -113,8 +128,9 @@ instance CanPi (ValueIntro err) (ValueIntro err) where
 forall_ :: (CanPi u v, CanSort u, Specification s) => Sym -> u s Sym -> v s Sym
 forall_ a = pi_ a (sort_ typeSort)
 
-foralls_ :: (CanPi u u, CanSort u, Specification s) => [Sym] -> u s Sym -> u s Sym
-foralls_ as b = foldr forall_ b as
+foralls_ :: (CanPi u v, CanPi u u, CanSort u, Specification s) => [Sym] -> u s Sym -> v s Sym
+foralls_ []     b = convert b
+foralls_ (a:as) b = forall_ a (foldr forall_ b as)
 
 -------------------------------------------------------------------------------
 -- Sort
@@ -140,7 +156,8 @@ class CanLam u where
     lam_ :: Sym -> u s Sym -> u s Sym
 
 instance CanLam TermChk where
-    lam_ x f = Lam (IrrSym x) $ abstract1HSym x f
+    lam_ x@"_" f = Lam (IrrSym x) $ liftH f
+    lam_ x f     = Lam (IrrSym x) $ abstract1HSym x f
 
 -- instance CanLam (ValueIntro err) where
 --     lam_ x f = ValueLam (IrrSym x) $ abstract1Sym x f

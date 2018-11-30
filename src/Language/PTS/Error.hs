@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings, FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
 -- | Errors. Not re-exported by "Language.PTS".
 module Language.PTS.Error (
     MonadErr (..),
@@ -17,9 +18,12 @@ import Data.String               (IsString (..))
 
 import qualified Control.Monad.EitherK    as U
 import qualified Control.Unification      as U
+import qualified Data.Set                 as Set
 import qualified Text.PrettyPrint.Compact as PP
 
 import Language.PTS.Pretty
+import Language.PTS.Sym
+
 
 -- | A @MonadError Err@.
 class Monad m => MonadErr m where
@@ -86,6 +90,10 @@ data Err
       -- ^ apply warning in 'Term' type-checker.
     | SortWithoutAxiom (PrettyM Doc) [PrettyM Doc]
       -- ^ abstracting over a sort without an axiom.
+    | QuarkNotInHadron Sym (Set.Set Sym) [PrettyM Doc]
+      -- ^ quark not in hardon
+    | QuarkNotHadron Sym (PrettyM Doc) [PrettyM Doc]
+      -- ^ quark is (annoted with) not a hadron
     | ApplyPanic String (PrettyM Doc)
       -- ^ apply panic in 'Value' evaluator
     | OccursFailure (PrettyM Doc) (PrettyM Doc)
@@ -141,6 +149,13 @@ instance PrettyPrec Err where
     ppp _ (NotAPair t p ctx)               = pppError ctx
         [ "Couldn't match actual type" <+> t <+> "with a pair type"
         , "In the match on" <+> p
+        ]
+    ppp _ (QuarkNotInHadron q qs ctx)      = pppError ctx
+        [ "The quark" <+> pppQuark q <+> "is not in hadron" <+> pppHadron qs
+        ]
+    ppp _ (QuarkNotHadron q t ctx)         = pppError ctx
+        [ "The quark" <+> pppQuark q <+> "doesn't have a Hadron type"
+        , "Annotated with" <+> t
         ]
     ppp _ (SortWithoutAxiom s ctx)         = pppError ctx
         [ "Type-less sort" <+> s <+> "(no axiom exist)"

@@ -43,6 +43,11 @@ valueType_ _ ValueAbsurd {}
     = ValueErr $ review _Err $ SomeErr "valueAbsurd"
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_QUARKS
+valueType_ _ ValueQuarkElim {}
+    = ValueErr $ review _Err $ SomeErr "valueQuarkElim"
+#endif
+
 #ifdef LANGUAGE_PTS_HAS_BOOL
 valueType_ _ctx (ValueBoolElim _ p _ _ b) = instantiate1 (ValueCoerce b) p
 #ifdef LANGUAGE_PTS_HAS_BOOL_PRIM
