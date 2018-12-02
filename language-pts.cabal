@@ -135,13 +135,14 @@ library
     Language.PTS.Examples
     Language.PTS.Examples.Booleans
     Language.PTS.Examples.Contexts
-    Language.PTS.Examples.Errors
     Language.PTS.Examples.Equality
+    Language.PTS.Examples.Errors
+    Language.PTS.Examples.EvenOrOdd
     Language.PTS.Examples.Hurkens
     Language.PTS.Examples.Identity
     Language.PTS.Examples.Naturals
-    Language.PTS.Examples.Sigma
     Language.PTS.Examples.Quarks
+    Language.PTS.Examples.Sigma
 
     Text.Show.Extras
 

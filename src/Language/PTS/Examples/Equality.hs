@@ -1,10 +1,10 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 #ifdef LANGUAGE_PTS_HAS_EQUALITY
 #ifdef LANGUAGE_PTS_HAS_BOOL
 #ifdef LANGUAGE_PTS_HAS_NAT
 #ifdef LANGUAGE_PTS_HAS_SIGMA
 #ifdef LANGUAGE_PTS_HAS_PROP
 #define EQUALITY_EXAMPLES
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 #endif
 #endif
 #endif
@@ -348,9 +348,9 @@ leibnizScript = do
 
     comment_ "An exercise!"
 
-#endif
-
 -- $setup
 -- >>> :seti -XOverloadedStrings -XTypeApplications
 -- >>> import Language.PTS.Pretty
 -- >>> import Language.PTS.Systems
+
+#endif
