@@ -1,0 +1,29 @@
+image: ubuntu:18.04
+
+before_script:
+  - echo $HC $TESTS
+  - apt-get update -qq
+  - apt-get install -y -qq software-properties-common
+  - add-apt-repository ppa:hvr/ghc
+  - apt-get update -qq
+  - apt-get install -y -qq $HC cabal-install-head
+  - HC=/opt/ghc/bin/$HC
+  - CABAL=/opt/ghc/bin/cabal
+  - $HC --version
+  - $CABAL --version
+
+ghc-8.4.4:
+  variables:
+    HC: ghc-8.4.4
+    TESTS: --enable-tests
+  script:
+    - ${CABAL} v2-update
+    - ${CABAL} v2-build -w ${HC} ${TESTS} all
+
+ghc-8.6.3:
+  variables:
+    HC: ghc-8.6.3
+    TESTS: --disable-tests
+  script:
+    - ${CABAL} v2-update
+    - ${CABAL} v2-build -w ${HC} ${TESTS} all
