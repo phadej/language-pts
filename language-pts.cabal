@@ -22,7 +22,7 @@ maintainer:    Oleg Grenrus <oleg.grenrus@iki.fi>
 tested-with:
   GHC == 8.2.2
    || == 8.4.4
-   || == 8.6.2
+   || == 8.6.3
 
 extra-source-files:
   fixtures/hurkens-hol.txt
