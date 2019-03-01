@@ -1,29 +1,66 @@
-image: ubuntu:18.04
+# per-job and per-branch caching:
+cache:
+  key: "$CI_JOB_NAME-$CI_COMMIT_REF_SLUG"
+  paths:
+    - .store
+
+stages:
+- sdist
+- build
 
 before_script:
   - echo $HC $TESTS
-  - apt-get update -qq
-  - apt-get install -y -qq software-properties-common
-  - add-apt-repository ppa:hvr/ghc
-  - apt-get update -qq
-  - apt-get install -y -qq $HC cabal-install-head
+  - sudo apt-get update -qq
+  - sudo apt-get install -y -qq $HC cabal-install-2.4
   - HC=/opt/ghc/bin/$HC
   - CABAL=/opt/ghc/bin/cabal
+  - CABALHOME=$HOME/.cabal
   - $HC --version
   - $CABAL --version
+  - whoami
 
-ghc-8.4.4:
+sdist:
+  stage: sdist
+  image: registry.gitlab.com/haskell-ci/haskell-ci/ghc-8.4.4:1
   variables:
     HC: ghc-8.4.4
-    TESTS: --enable-tests
+    TEST: --enable-tests
   script:
-    - ${CABAL} v2-update
-    - ${CABAL} v2-build -w ${HC} ${TESTS} all
+    # https://github.com/haskell/cabal/issues/5908
+    - export PATH=/opt/ghc/bin:$PATH
+    - ${CABAL} --store-dir=.store v2-sdist
+  artifacts:
+    expire_in: "1 week"
+    paths:
+      - dist-newstyle/sdist
 
+.script: &script
+  - ls dist-newstyle/sdist
+  - ${CABAL} v2-update
+  - ${CABAL} --store-dir=.store v2-build -w ${HC} ${TEST} all
+  - if [ "$TEST" = "--enable-tests" ]; then ${CABAL} --store-dir=.store v2-test -w ${HC} ${TEST} all; fi
+
+ghc-8.2.2:
+  stage: build
+  script: *script
+  image: registry.gitlab.com/haskell-ci/haskell-ci/ghc-8.2.2:1
+  variables:
+    HC: ghc-8.2.2
+    TEST: --enable-tests
+
+ghc-8.4.4:
+  stage: build
+  script: *script
+  image: registry.gitlab.com/haskell-ci/haskell-ci/ghc-8.4.4:1
+  variables:
+    HC: ghc-8.4.4
+    TEST: --enable-tests
+
+# as a test: there are no ghc-8.6.3 image :)
 ghc-8.6.3:
+  stage: build
+  script: *script
+  image: registry.gitlab.com/haskell-ci/haskell-ci/generic:1
   variables:
     HC: ghc-8.6.3
-    TESTS: --disable-tests
-  script:
-    - ${CABAL} v2-update
-    - ${CABAL} v2-build -w ${HC} ${TESTS} all
+    TEST: --disable-tests
