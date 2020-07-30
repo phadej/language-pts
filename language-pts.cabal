@@ -22,7 +22,9 @@ maintainer:    Oleg Grenrus <oleg.grenrus@iki.fi>
 tested-with:
   GHC == 8.2.2
    || == 8.4.4
-   || == 8.6.3
+   || == 8.6.5
+   || == 8.8.3
+   || == 8.10.1
 
 extra-source-files:
   fixtures/hurkens-hol.txt
@@ -103,13 +105,13 @@ library
     cpp-options: -DLANGUAGE_PTS_HAS_QUARKS
 
   build-depends:
-    , base            ^>=4.10.1.0 || ^>=4.11.1.0 || ^>=4.12.0.0
-    , base-compat     ^>=0.10.4
+    , base            ^>=4.10.1.0 || ^>=4.11.1.0 || ^>=4.12.0.0 || ^>=4.13.0.0 || ^>=4.14.0.0
+    , base-compat     ^>=0.11.1
     , bound           ^>=2.0.1
     , bound-extras    ^>=0
     , containers      ^>=0.5.10.2 || ^>=0.6.0.1
     , pretty-compact  ^>=3.0
-    , lens            ^>=4.17
+    , lens            ^>=4.19.2
     , text            ^>=1.2.3.0
     , mtl             ^>=2.2.2
     , unification-fd  ^>=0.10.0.1
@@ -157,6 +159,6 @@ test-suite language-pts-golden
   build-depends:
     , base
     , language-pts
-    , tasty         ^>=1.1.0.4
+    , tasty         ^>=1.3.1
     , tasty-golden  ^>=2.3.2
     , utf8-string   ^>=1.0.1.1

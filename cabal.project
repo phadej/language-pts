@@ -10,5 +10,7 @@ constraints: language-pts +quarks
 
 constraints: transformers installed
 
+allow-newer: pretty-compact:base-compat
+
 package language-pts
   ghc-options: -Werror

@@ -97,21 +97,23 @@ module Language.PTS.Pretty (
     predPrec,
     ) where
 
-import Control.Lens (itraverse)
+import Prelude ()
+import Prelude.Compat
+
 import Bound.Name                 (Name (..))
 import Bound.Var                  (Var (..))
 import Control.Applicative        (liftA2)
+import Control.Lens               (itraverse)
 import Control.Monad.State.Strict
 import Data.Char                  (isDigit)
-import Data.Semigroup             (Semigroup (..))
 import Data.String                (IsString (..))
 import Data.Text                  (Text, pack, unpack)
 import Data.Void                  (Void, absurd)
 
 import qualified Control.Unification        as U
 import qualified Control.Unification.IntVar as U
-import qualified Data.Set                   as Set
 import qualified Data.Map                   as Map
+import qualified Data.Set                   as Set
 import qualified Text.PrettyPrint.Compact   as PP
 
 import Language.PTS.Sym
@@ -210,7 +212,7 @@ pppMarkSym (Sym s) = PrettyM $ do
 -- | Generate fresh name.
 --
 -- >>> prettyPut' $ pppFreshSym "x" <+> pppFreshSym "x" <+> pppFreshSym "x"
--- x x₁ x₂ 
+-- x x₁ x₂
 --
 pppFreshSym :: Sym -> PrettyM Doc
 pppFreshSym (Sym s) = PrettyM $ do
