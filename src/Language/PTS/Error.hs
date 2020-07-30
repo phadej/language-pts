@@ -94,6 +94,8 @@ data Err
       -- ^ quark not in hardon
     | QuarkNotHadron Sym (PrettyM Doc) [PrettyM Doc]
       -- ^ quark is (annoted with) not a hadron
+    | IntraSortFix (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
+      -- ^ fixed point body from one sort to another
     | ApplyPanic String (PrettyM Doc)
       -- ^ apply panic in 'Value' evaluator
     | OccursFailure (PrettyM Doc) (PrettyM Doc)
@@ -160,6 +162,10 @@ instance PrettyPrec Err where
     ppp _ (SortWithoutAxiom s ctx)         = pppError ctx
         [ "Type-less sort" <+> s <+> "(no axiom exist)"
         ]
+    ppp _ (IntraSortFix a b ctx)           = pppError ctx
+        [ "Fixed point between different sorts" <+> a <+> "and" <+> b
+        ]
+
     ppp _ (ApplyPanic tag f) =
         "panic '" <> pppText tag <> "':" </> err
       where

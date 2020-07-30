@@ -174,6 +174,11 @@ data ValueIntro err s a
     | ValueQuark Sym
       -- ^ Quark.
 #endif
+
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    | ValueMu IrrSym (ValueIntro err s a) (Scope IrrSym (ValueIntro err s) a)
+#endif
+
   deriving (Functor, Foldable, Traversable)
 
 -- | 'ValueElim' is extracted from a hypothesis, \(A\!\downarrow\).
@@ -311,6 +316,10 @@ instance (PrettyPrec err,  AsErr err, Specification s) => Monad (ValueIntro err 
 #ifdef LANGUAGE_PTS_HAS_QUARKS
     ValueHadron ls >>= _ = ValueHadron ls
     ValueQuark l   >>= _ = ValueQuark l
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    ValueMu x a b  >>= k = ValueMu x (a >>= k) (b >>>= k)
 #endif
 
 
@@ -501,6 +510,10 @@ valueBind (ValueNatS n)   k = ValueNatS (n >>= ValueCoerce . k)
 #if LANGUAGE_PTS_HAS_QUARKS
 valueBind (ValueHadron ls) _ = ValueHadron ls
 valueBind (ValueQuark l)   _ = ValueQuark l
+#endif
+
+#if LANGUAGE_PTS_HAS_FIXED_POINT
+valueBind (ValueMu x a b) k = ValueMu x (valueBind a k) (b >>>= ValueCoerce . k)
 #endif
 
 pureValueIntro :: a -> ValueIntro err s a

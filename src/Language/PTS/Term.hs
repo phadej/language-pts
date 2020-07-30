@@ -534,6 +534,12 @@ instance Show s => Show1 (TermChk s) where
         "Quark" d q
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    liftShowsPrec sp sl d (Wrap x) = showsUnaryWith
+        (liftShowsPrec sp sl) 
+        "Wrap" d x
+#endif
+
 instance Show s => Show1 (TermInf s) where
     liftShowsPrec sp _ d (Var x) = showsUnaryWith
         sp
@@ -853,6 +859,13 @@ pppChk d (Absurd x) = pppApplication d
 pppChk _ (Quark q) = pppQuark q
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+pppChk d (Wrap x) = pppApplication d
+    (pppText "wrap")
+    [ pppChk PrecApp x
+    ]
+#endif
+
 instance (Specification s, PrettyPrec a) => PrettyPrec (TermInf s a) where ppp = ppp1
 instance (Specification s, PrettyPrec a) => PrettyPrec (TermChk s a)  where ppp = ppp1
 
@@ -952,6 +965,10 @@ instance Module (TermChk s) (TermInf s) where
 
 #ifdef LANGUAGE_PTS_HAS_QUARKS
     Quark q >>== _ = Quark q 
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    Wrap f >>== k = Wrap (f >>== k)
 #endif
 
 instance Module (TermInf s) (TermInf s) where

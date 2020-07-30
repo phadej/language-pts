@@ -223,6 +223,15 @@ rtype_ ts ctx term = case term of
         return (valueQuarkElim x p' qs' q', instantiate1 q' p')
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    Mu x a b -> do
+        (a', as) <- rsort_ ts' ctx a
+        (b', bs) <- rsort_ ts' ctx a
+        if as == bs
+        then _
+        else return $ throwErr $ IntraSortFix (ppp0 as) (ppp0 bs) ts
+#endif
+
   where
     ts' :: [PrettyM Doc]
     ts' = ppp0 term : ts
