@@ -379,6 +379,13 @@ data TermInf s a
     | QuarkElim IrrSym (ScopeInf IrrSym s a) (Map Sym (TermChk s a)) (TermChk s a)
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    -- | Least fixed point
+
+    | Mu IrrSym (TermInf s a) (ScopeH IrrSym (TermInf s) (TermInf s) a)
+
+#endif
+
   deriving (Functor, Foldable, Traversable)
 
 -- | Checkable terms, \(\mathit{Term}_\Leftarrow\).
@@ -469,6 +476,11 @@ data TermChk s a
     -- \]
 
     | Quark Sym
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    -- | Wrapping of fixed point.
+    | Wrap (TermChk s a)
 #endif
 
   deriving (Functor, Foldable, Traversable)
@@ -637,6 +649,14 @@ instance Show s => Show1 (TermInf s) where
         "QuarkElim" d x p (P $ Map.toList qs) q
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    liftShowsPrec sp sl d (Mu x y z) = showsTernaryWith
+        showsPrec
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "Mu" d x y z
+#endif
+
 instance (Show a, Show s) => Show (TermInf s a) where showsPrec = showsPrec1
 instance (Show a, Show s) => Show (TermChk s a) where showsPrec = showsPrec1
 
@@ -743,6 +763,11 @@ pppInf d (QuarkElim x p qs q) = pppQuarkElim d x
     (\xDoc -> pppInf PrecLambda $ instantiate1Hreturn xDoc p)
     (fmap (pppChk PrecApp) qs)
     (pppChk PrecApp q)
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+pppInf d t@Mu {} = uncurry (pppPi d) =<< pppPeelPi t
+
 #endif
 
 pppPeelPi :: Specification s => TermInf s Doc -> PrettyM ([PPPi], PrettyM Doc)
@@ -900,6 +925,12 @@ instance Monad (TermInf s) where
         (p >>== k)
         (fmap (>>== k) qs)
         (q >>== k)
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    Mu x a b >>= k = Mu x
+        (a >>= k)
+        (b >>== k)
 #endif
 
 instance Module (TermChk s) (TermInf s) where

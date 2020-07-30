@@ -294,6 +294,7 @@ data PPPi
     | PPArrow (PrettyM Doc)
     | PPSigma Doc (PrettyM Doc)
     | PPExists Doc
+    | PPMu Doc (PrettyM Doc)
 
 -- | Render (dependent) function space.
 --
@@ -372,6 +373,7 @@ pppPiPart (PPForall n)  = pppChar '∀' <+> return n
 pppPiPart (PPArrow n)   = n
 pppPiPart (PPExists n)  = pppChar 'E' <+> return n
 pppPiPart (PPSigma n t) = pppChar '∑' <+> pppParens True (return n <+> pppColon <+> t)
+pppPiPart (PPMu n t)    = pppChar 'μ' <+> pppParens True (return n <+> pppColon <+> t)
 
 -------------------------------------------------------------------------------
 -- Hadron
@@ -405,6 +407,12 @@ pppQuarkElim d x p qs q = pppApplication d
           | otherwise = PP.semiBraces . Map.elems <$> itraverse case_ qs
 
     case_ k v = pppQuark k <+> pppArrow <+> v
+
+-------------------------------------------------------------------------------
+-- Fixed point
+-------------------------------------------------------------------------------
+
+-- TBW
 
 -------------------------------------------------------------------------------
 -- Combinators
