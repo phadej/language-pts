@@ -7,6 +7,7 @@ constraints: language-pts +sigma
 constraints: language-pts +eq
 constraints: language-pts +prop
 constraints: language-pts +quarks
+constraints: language-pts +fixed-point
 
 constraints: transformers installed
 
