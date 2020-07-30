@@ -94,6 +94,8 @@ data Err
       -- ^ quark not in hardon
     | QuarkNotHadron Sym (PrettyM Doc) [PrettyM Doc]
       -- ^ quark is (annoted with) not a hadron
+    | NotBool (PrettyM Doc) [PrettyM Doc]
+      -- ^ elimination of non-Boolean
     | ApplyPanic String (PrettyM Doc)
       -- ^ apply panic in 'Value' evaluator
     | OccursFailure (PrettyM Doc) (PrettyM Doc)
@@ -159,6 +161,9 @@ instance PrettyPrec Err where
         ]
     ppp _ (SortWithoutAxiom s ctx)         = pppError ctx
         [ "Type-less sort" <+> s <+> "(no axiom exist)"
+        ]
+    ppp _ (NotBool b ctx) = pppError ctx
+        [ "The boolean expression" <+> b <+> "doesn't have Bool-type"
         ]
     ppp _ (ApplyPanic tag f) =
         "panic '" <> pppText tag <> "':" </> err
