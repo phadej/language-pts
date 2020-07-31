@@ -62,6 +62,11 @@ class (Specification s, Monad m) => Script s m | m -> s where
         -> Term s         -- ^ term
         -> m ()
 
+    postulate_
+        :: Sym            -- ^ name
+        -> Term s         -- ^ type
+        -> m ()
+
     -- | Evaluate an example value.
     example_ :: Term s -> m ()
 
@@ -243,7 +248,7 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
 
         let t' = t >>= valueCtx
         (t'', tt) <- type_ typeCtx t'
-        case tt of 
+        case tt of
             ValueSort _ -> return ()
             _           -> throwErr "type of 'type' is not a sort"
 
@@ -280,6 +285,30 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
 
         sTerms . at n ?= (x', t)
         sDefinitions %= ((n, x) :)
+
+    postulate_ n t = do
+        startCommand CDefine
+        output <- ScriptT $ use sOutput
+
+        if output
+        then putPP $ "λ» :postulate" <+> ppp0 n
+                </> pppColon <+> ppp0 t
+        else return ()
+
+        terms <- use sTerms
+        when (has (ix n) terms) $ throwErr "Already defined"
+
+        let typeCtx  n' = terms ^? ix n' . _2
+        let valueCtx n' = maybe (return n') id $ terms ^? ix n' . _1
+
+        let t' = t >>= valueCtx
+        (t'', tt) <- type_ typeCtx t'
+        case tt of
+            ValueSort _ -> return ()
+            _           -> throwErr "type of 'type' is not a sort"
+
+        let x' = Inf (Var n)
+        sTerms . at n ?= (Ann x' t', t'')
 
     dumpDefs_ = do
         defs <- use sDefinitions

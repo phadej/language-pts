@@ -1,9 +1,8 @@
-cabal-version: 2.2
-name:          language-pts
-version:       0
-
-category: Language
-synopsis: Pure Type Systems
+cabal-version:      2.2
+name:               language-pts
+version:            0
+category:           Language
+synopsis:           Pure Type Systems
 description:
   @language-pts@ implements a pure type system, based on
   /A tutorial implementation of a dependently typed lambda calculus/
@@ -14,17 +13,12 @@ description:
   * parametrised by PTS 'Specification'.
   * see "Language.PTS" module for more
 
-license:       BSD-3-Clause
-license-file:  LICENSE
-author:        Oleg Grenrus <oleg.grenrus@iki.fi>
-maintainer:    Oleg Grenrus <oleg.grenrus@iki.fi>
-
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             Oleg Grenrus <oleg.grenrus@iki.fi>
+maintainer:         Oleg Grenrus <oleg.grenrus@iki.fi>
 tested-with:
-  GHC == 8.2.2
-   || == 8.4.4
-   || == 8.6.5
-   || == 8.8.3
-   || == 8.10.1
+  GHC ==8.2.2 || ==8.4.4 || ==8.6.5 || ==8.8.3 || ==8.10.1
 
 extra-source-files:
   fixtures/hurkens-hol.txt
@@ -32,63 +26,68 @@ extra-source-files:
   fixtures/hurkens-system-u.txt
 
 source-repository head
-  type: git
+  type:     git
   location: https://github.com/phadej/language-pts
 
 flag sigma
   description: Add Sigma (dependent pair) type.
-  manual:  True
-  default: False
+  manual:      True
+  default:     False
 
 flag eq
   description: Add Equality type.
-  manual:  True
-  default: False
+  manual:      True
+  default:     False
 
 flag prop
   description: Add Unit and Empty types
-  manual:  True
-  default: False
+  manual:      True
+  default:     False
 
 flag bool
   description: add @Bool@ combinators to the type-system.
-  manual:  True
-  default: False
+  manual:      True
+  default:     False
 
 flag bool-prim
-  description: Add @Bool@ primitives, like @and@ which reduce more aggressively.
-  manual:  True
-  default: False
+  description:
+    Add @Bool@ primitives, like @and@ which reduce more aggressively.
+
+  manual:      True
+  default:     False
 
 flag nat
   description: add @Nat@ combinators to the type-system.
-  manual:  True
-  default: False
+  manual:      True
+  default:     False
 
 flag nat-prim
-  description: Add @Nat@ primitives, like @plus@ which reduce more aggressively.
-  manual:  True
-  default: False
+  description:
+    Add @Nat@ primitives, like @plus@ which reduce more aggressively.
+
+  manual:      True
+  default:     False
 
 flag quarks
   description: Add /quarks/ primitives.
-  manual:  True
-  default: False
+  manual:      True
+  default:     False
 
 library
-  default-language: Haskell2010
-  hs-source-dirs:   src
-  ghc-options:      -Wall
-
+  default-language:   Haskell2010
+  hs-source-dirs:     src
+  ghc-options:        -Wall
   default-extensions: CPP
 
   if flag(bool)
     cpp-options: -DLANGUAGE_PTS_HAS_BOOL
+
     if flag(bool-prim)
       cpp-options: -DLANGUAGE_PTS_HAS_BOOL_PRIM
 
   if flag(nat)
     cpp-options: -DLANGUAGE_PTS_HAS_NAT
+
     if flag(nat-prim)
       cpp-options: -DLANGUAGE_PTS_HAS_NAT_PRIM
 
@@ -110,30 +109,33 @@ library
     , bound           ^>=2.0.1
     , bound-extras    ^>=0
     , containers      ^>=0.5.10.2 || ^>=0.6.0.1
-    , pretty-compact  ^>=3.0
     , lens            ^>=4.19.2
-    , text            ^>=1.2.3.0
     , mtl             ^>=2.2.2
-    , unification-fd  ^>=0.10.0.1
+    , pretty-compact  ^>=3.0
+    , text            ^>=1.2.3.0
     , transformers
+    , unification-fd  ^>=0.10.0.1
+
   exposed-modules:
     Language.PTS
     Language.PTS.Bound
     Language.PTS.Check
     Language.PTS.Error
-    -- Language.PTS.Eval
     Language.PTS.Pretty
     Language.PTS.Quote
     Language.PTS.Script
     Language.PTS.Smart
     Language.PTS.Specification
-    Language.PTS.Term
     Language.PTS.Sym
     Language.PTS.Systems
+    Language.PTS.Term
     Language.PTS.Value
     Language.PTS.Value.Check
     Language.PTS.WHNF
+    Text.Show.Extras
 
+  -- Examples
+  exposed-modules:
     Language.PTS.Examples
     Language.PTS.Examples.Booleans
     Language.PTS.Examples.Contexts
@@ -143,19 +145,16 @@ library
     Language.PTS.Examples.Hurkens
     Language.PTS.Examples.Identity
     Language.PTS.Examples.Naturals
+    Language.PTS.Examples.Postulates
     Language.PTS.Examples.Quarks
     Language.PTS.Examples.Sigma
-
-    Text.Show.Extras
 
 test-suite language-pts-golden
   type:             exitcode-stdio-1.0
   main-is:          Golden.hs
-
   default-language: Haskell2010
   hs-source-dirs:   test
   ghc-options:      -Wall
-
   build-depends:
     , base
     , language-pts
