@@ -1,9 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Language.PTS.Examples.Postulates (
     postulatesScript,
+    parametricityScript,
 ) where
 
 import Language.PTS
+
+-- $setup
+-- >>> :seti -XOverloadedStrings -XTypeApplications
+-- >>> import Language.PTS.Pretty
+-- >>> import Language.PTS.Systems
 
 -------------------------------------------------------------------------------
 -- Postulates
@@ -39,7 +45,25 @@ postulatesScript = do
 
     example_ $ "f" @@ "x"
 
--- $setup
--- >>> :seti -XOverloadedStrings -XTypeApplications
--- >>> import Language.PTS.Pretty
--- >>> import Language.PTS.Systems
+-------------------------------------------------------------------------------
+-- Parametricity
+-------------------------------------------------------------------------------
+
+-- |
+--
+-- >>> runLoud $ spec_ LambdaStar >> parametricityScript
+parametricityScript :: (ReflectiveSpecification s, Script s m) => m ()
+parametricityScript = do
+    section_ "Sorts"
+
+    parametricity_
+        $$ sort_ typeSort
+
+    parametricity_ 
+        $$ pi_ "x" (sort_ typeSort) (sort_ typeSort)
+
+    postulate_ "A" (sort_ typeSort)
+    postulate_ "B" ("A" ~> sort_ typeSort)
+
+    parametricity_ $$ pi_ "x" "A" ("B" @@ "x")
+

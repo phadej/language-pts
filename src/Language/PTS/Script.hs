@@ -32,6 +32,7 @@ import Language.PTS.Specification
 import Language.PTS.Sym
 import Language.PTS.Term
 import Language.PTS.Value
+import Language.PTS.Parametricity
 
 -------------------------------------------------------------------------------
 -- Class
@@ -67,7 +68,10 @@ class (Specification s, Monad m) => Script s m | m -> s where
         -> Term s         -- ^ type
         -> m ()
 
-    -- ⟦ ⟧ 
+    parametricity_
+        :: ReflectiveSpecification s
+        => Term s
+        -> m ()
 
     -- | Evaluate an example value.
     example_ :: Term s -> m ()
@@ -312,6 +316,32 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
         let x' = Inf (Var n)
         sTerms . at n ?= (Ann x' t', t'')
 
+    parametricity_ x = do
+        startCommand CDefine
+        output <- ScriptT $ use sOutput
+
+        if output
+        then putPP $ "λ» :parametricity" <+> pppScott (ppp0 x)
+        else return ()
+
+        terms <- use sTerms
+
+        let typeCtx  n' = terms ^? ix n' . _2
+        let valueCtx n' = maybe (return n') id $ terms ^? ix n' . _1
+
+        let x' = x >>= valueCtx
+        (_, t) <- type_ typeCtx x'
+        t' <- errorlessValueIntro t
+
+        let triple :: Sym -> (Sym, Sym, Sym)
+            triple (Sym s) = (Sym $ s <> "1", Sym $ s <> "2", Sym $ "⟦" <> s <> "⟧")
+
+        let x'' = relationInf triple x
+            t'' = relationChk triple (quote_ (t' :: ValueIntro Void s Sym))
+
+        putPP $ pppChar '↪' <+> ppp0 x''
+            </> pppChar ':' <+> ppp0 t''
+
     dumpDefs_ = do
         defs <- use sDefinitions
         for_ (reverse defs) $ \(n, x) ->
@@ -332,3 +362,7 @@ instance (Specification s, Monad m) => Script s (ScriptT s m) where
             -- quote term back!
             putPP $ pppChar '↪' <+> ppp0 (quote_ (x'' :: ValueIntro Void s Sym))
                 </> pppChar ':' <+> ppp0 (quote_ (t'' :: ValueIntro Void s Sym))
+
+pppScott :: PrettyM Doc -> PrettyM Doc
+pppScott doc = pppChar '⟦' <> doc <> pppChar '⟧'
+    

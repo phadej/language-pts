@@ -49,6 +49,11 @@ instance Specification LambdaStar where
     axiom _      = Just LambdaStar
     rule _ _     = Just LambdaStar
 
+instance ReflectiveSpecification LambdaStar where
+    axiom' _       = LambdaStar
+    relationSort _ = LambdaStar
+    
+
 -- | Simply typed lambda calculus, \(\lambda^\to\).
 --
 -- \[

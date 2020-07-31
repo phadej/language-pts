@@ -22,7 +22,11 @@ relationInf ctx term = case term of
       where
         s' = axiom' (relationSort s)
 
-    Ann x t -> Ann (relationChk ctx x) (relationInf ctx t)
+    Ann x t -> Ann (relationChk ctx x) (relationInf ctx t @@ x1 @@ x2)
+      where
+        x1 = fmap (fstOf3 . ctx) x
+        x2 = fmap (sndOf3 . ctx) x
+
     App f x -> relationInf ctx f @@ x1 @@ x2 @@ relationChk ctx x
       where
         x1 = fmap (fstOf3 . ctx) x
@@ -69,7 +73,9 @@ relationChk
     => (a -> (b, b, b)) -- ^ translation of variables
     -> TermChk s a
     -> TermChk s b
-relationChk ctx term = error "todo" ctx term
+relationChk ctx term = case term of 
+    Inf t   -> Inf (relationInf ctx t)
+    Lam n b -> error "todo" n b
 
 fstOf3 :: (a,b,c) -> a
 fstOf3 (a,_,_) = a
