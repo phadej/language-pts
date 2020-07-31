@@ -226,10 +226,11 @@ rtype_ ts ctx term = case term of
 #ifdef LANGUAGE_PTS_HAS_FIXED_POINT
     Mu x a b -> do
         (a', as) <- rsort_ ts' ctx a
-        (b', bs) <- rsort_ ts' ctx a
+        (b', bs)  <- rsort_ ts' (addContext a' ctx) (fromScopeH b)
+        -- TODO: this is wrong
         if as == bs
-        then _
-        else return $ throwErr $ IntraSortFix (ppp0 as) (ppp0 bs) ts
+        then return (ValueMu x a' (toScope b'), ValueSort as)
+        else throwErr $ IntraSortFix (ppp0 b') (ppp0 bs) ts
 #endif
 
   where
@@ -323,9 +324,37 @@ rcheck_ ts ctx term t = case term of
             | otherwise       -> throwErr $ QuarkNotInHadron q qs ts
         _ -> throwErr $ QuarkNotHadron q (ppp0 t) ts
 #endif
+
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    Wrap x -> case t of
+        ValueMu _ _ b -> do
+            x' <- rcheck_ ts' ctx x (instantiate1 t b)
+            return (ValueWrap x')
+        _ -> throwErr $ WrapNotMu (ppp0 x) (ppp0 t) ts
+
+    Cata x f alg -> do
+        (f', ft) <- rtype_ ts' ctx f
+        case ft of
+            ValueMu _ _ b -> do
+                -- TODO: missing checks?
+                
+                let algB = instantiate1 t b
+
+                let algg = fromScopeH alg
+                algg' <- rcheck_ ts' (addContext algB ctx) algg (fmap F t)
+                let alg' = toScope algg'
+
+                return $ valueCata x f' alg'
+
+            _ -> throwErr $ NotAMu (ppp0 ft) (ppp0 f) ts
+#endif
   where
     ts' :: [PrettyM Doc]
     ts' = ppp0 term : ts
+
+-------------------------------------------------------------------------------
+-- Context mangling
+-------------------------------------------------------------------------------
 
 addContext
     :: ValueIntro err s a                  -- ^ x

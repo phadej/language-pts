@@ -64,6 +64,11 @@ valueType_ _ctx (ValueTimes _ _) = ValueNat
 #endif
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+valueType_ _ctx (ValueCata _x _m _a)
+    = ValueErr $ review _Err $ SomeErr "valueCata"
+#endif
+
 {-
 valueIntroType_
     :: (Specification s, AsErr err, PrettyPrec err, PrettyPrec a)

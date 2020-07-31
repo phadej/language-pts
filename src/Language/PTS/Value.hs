@@ -53,6 +53,9 @@ module Language.PTS.Value (
     -- * Quarks
     valueQuarkElim,
 #endif
+#if LANGUAGE_PTS_HAS_FIXED_POINT
+    valueCata,
+#endif
     -- * Pretty-printing
     pppIntro,
     pppElim,
@@ -177,6 +180,10 @@ data ValueIntro err s a
 
 #ifdef LANGUAGE_PTS_HAS_FIXED_POINT
     | ValueMu IrrSym (ValueIntro err s a) (Scope IrrSym (ValueIntro err s) a)
+      -- ^ Fixed-point type
+
+    | ValueWrap (ValueIntro err s a)
+      -- ^ Wrap
 #endif
 
   deriving (Functor, Foldable, Traversable)
@@ -263,6 +270,12 @@ data ValueElim err s a
     | ValueFix (ValueElim err s a)
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    -- | Catamorphism.
+    --
+    | ValueCata IrrSym (ValueElim err s a) (Scope IrrSym (ValueIntro err s) a)
+#endif
+
   deriving (Functor, Foldable, Traversable)
 
 instance IsString a => IsString (ValueIntro err s a) where
@@ -320,6 +333,7 @@ instance (PrettyPrec err,  AsErr err, Specification s) => Monad (ValueIntro err 
 
 #ifdef LANGUAGE_PTS_HAS_FIXED_POINT
     ValueMu x a b  >>= k = ValueMu x (a >>= k) (b >>>= k)
+    ValueWrap x    >>= k = ValueWrap (x >>= k)
 #endif
 
 
@@ -380,12 +394,9 @@ valueAppBind (ValueQuarkElim x p ls l) k =
     valueQuarkElim x (p >>>= k) (fmap (>>= k) ls) (valueAppBind l k)
 #endif
 
-#if LANGUAGE_PTS_HAS_FIX
-valueAppBind (ValueFix f) k = case valueAppBind f k of
-    ValueCoerce f'     -> ValueCoerce (ValueFix f')
-    f'@(ValueLam _n b) -> instantiate1 f' b
-    ValueErr err       -> ValueErr err
-    f'                 -> ValueErr $ review _Err $ ApplyPanic (pppValueIntro 0 f')
+#if LANGUAGE_PTS_HAS_FIXED_POINT
+valueAppBind (ValueCata x mu alg) k =
+    valueCata x (valueAppBind mu k)  (alg >>>= k)
 #endif
 
 instance (PrettyPrec err, AsErr err, Specification s) => Applicative (ValueElim err s) where
@@ -449,8 +460,10 @@ instance (PrettyPrec err, AsErr err, Specification s) => Monad (ValueElim err s)
         (l >>= k)
 #endif
 
-#ifdef LANGUAGE_PTS_HAS_FIX
-    ValueFix f >>= k = ValueFix (f >>= k)
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    ValueCata x m a >>= k = ValueCata x
+        (m >>= k)
+        (valueBindScope a k)
 #endif
 
 #if defined(LANGUAGE_PTS_HAS_SIGMA) || defined(LANGUAGE_PTS_HAS_EQUALITY) || defined(LANGUAGE_PTS_HAS_BOOL) || defined(LANGUAGE_PTS_HAS_NAT) || defined(LANGUAGE_PTS_HAS_QUARKS)
@@ -513,7 +526,8 @@ valueBind (ValueQuark l)   _ = ValueQuark l
 #endif
 
 #if LANGUAGE_PTS_HAS_FIXED_POINT
-valueBind (ValueMu x a b) k = ValueMu x (valueBind a k) (b >>>= ValueCoerce . k)
+valueBind (ValueMu n a b) k = ValueMu n (valueBind a k) (b >>>= ValueCoerce . k)
+valueBind (ValueWrap x)   k = ValueWrap (valueBind x k)
 #endif
 
 pureValueIntro :: a -> ValueIntro err s a
@@ -603,6 +617,7 @@ valueNatElim x p z s = go where
     go (ValueCoerce n) = ValueCoerce (ValueNatElim x p z s n)
     go ValueNatZ       = z
     go (ValueNatS n)   = s `valueApp` n `valueApp` go n
+    go (ValueErr err)  = ValueErr err
     go n'              = ValueErr $ review _Err $ ApplyPanic "ℕ-elim" $ ppp0 (void n')
 
 #if LANGUAGE_PTS_HAS_NAT_PRIM
@@ -663,6 +678,25 @@ valueQuarkElim x p ls = go where
         | otherwise = ValueErr $ review _Err $ SomeErr $ show (l, Map.keys ls)
     go l               = ValueErr $ review _Err $
         ApplyPanic "L-elim" $ ppp0 (void l)
+#endif
+
+-------------------------------------------------------------------------------
+-- Fixed point
+-------------------------------------------------------------------------------
+
+#if LANGUAGE_PTS_HAS_FIXED_POINT
+valueCata
+    :: (Specification s, AsErr err, PrettyPrec err)
+    => IrrSym                              -- ^ x
+    -> ValueIntro err s a                  -- ^ m : mu (A : s) -> F A
+    -> Scope IrrSym (ValueIntro err s) a   -- ^ F res |- alg : res
+    -> ValueIntro err s a                  -- ^ res
+valueCata x mu0 alg = go mu0 where
+    go (ValueCoerce mu) = ValueCoerce (ValueCata x mu alg)
+    go (ValueWrap el)   = instantiate1 el alg -- TODO: Very Wrong
+
+    go (ValueErr err) = ValueErr err
+    go mu             = ValueErr $ review _Err $ ApplyPanic "cata" $ ppp0 x <+> ppp0 (void mu)
 #endif
 
 -------------------------------------------------------------------------------
@@ -728,6 +762,8 @@ mapValueIntroError :: (err -> err') -> ValueIntro err s a -> ValueIntro err' s a
 mapValueIntroError f = runIdentity . traverseErrValueIntro (Identity . f)
 
 -- | Expose an error if it's there.
+--
+-- 'traverse' over @err@ parameter of 'ValueElim'.
 traverseErrValueIntro :: Applicative f => (err -> f err') -> ValueIntro err s a -> f (ValueIntro err' s a)
 traverseErrValueIntro f (ValueErr err)    = ValueErr <$> f err
 traverseErrValueIntro _ (ValueSort s)     = pure (ValueSort s)
@@ -780,7 +816,15 @@ traverseErrValueIntro _ (ValueHadron ls) = pure (ValueHadron ls)
 traverseErrValueIntro _ (ValueQuark l)   = pure (ValueQuark l)
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+traverseErrValueIntro f (ValueMu n a b) = ValueMu n
+    <$> traverseErrValueIntro f a
+    <*> transverseScope (traverseErrValueIntro f) b
+traverseErrValueIntro f (ValueWrap x) = ValueWrap
+    <$> traverseErrValueIntro f x
+#endif
 
+-- | 'traverse' over @err@ parameter of 'ValueElim'.
 traverseErrValueElim :: Applicative f => (err -> f err') -> ValueElim err s a -> f (ValueElim err' s a)
 traverseErrValueElim _ (ValueVar a)   = pure (ValueVar a)
 traverseErrValueElim f (ValueApp g x) = ValueApp <$> traverseErrValueElim f g <*> traverseErrValueIntro f x
@@ -848,8 +892,10 @@ traverseErrValueElim f (ValueQuarkElim x p ls l) = ValueQuarkElim x
     <*> traverseErrValueElim  f l
 #endif
 
-#ifdef LANGUAGE_PTS_HAS_FIX
-traverseErrValueElim f (ValueFix g) = ValueFix <$> traverseErrValueElim f g
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+traverseErrValueElim f (ValueCata x m a) = ValueCata x
+    <$> traverseErrValueElim f m
+    <*> transverseScope (traverseErrValueIntro f) a
 #endif
 
 errorlessValueIntro :: MonadErr m => ValueIntro Err s a -> m (ValueIntro err' s a)
@@ -942,6 +988,18 @@ instance (Show s, Show err) => Show1 (ValueIntro err s) where
         "ValueQuark" d l
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    liftShowsPrec sp sl d (ValueMu x y z) = showsTernaryWith
+        showsPrec
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "ValueMu" d x y z
+
+    liftShowsPrec sp sl d (ValueWrap x) = showsUnaryWith
+        (liftShowsPrec sp sl)
+        "ValueWrap" d x
+#endif
+
 instance (Show s, Show err) => Show1 (ValueElim err s) where
     liftShowsPrec sp _ d (ValueVar x) =
         showsUnaryWith sp "ValueVar" d x
@@ -1024,10 +1082,12 @@ instance (Show s, Show err) => Show1 (ValueElim err s) where
         "ValueQuarkElim" d x p (P $ Map.toList ls) l
 #endif
 
-#ifdef LANGUAGE_PTS_HAS_FIX
-    liftShowsPrec sp sl d (ValueFix x) = showsUnaryWith
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    liftShowsPrec sp sl d (ValueCata x y z) = showsTernaryWith
+        showsPrec
         (liftShowsPrec sp sl)
-        "ValueFix" d x
+        (liftShowsPrec sp sl)
+        "ValueCata" d x y z
 #endif
 
 instance (Show a, Show err, Show s) => Show (ValueIntro err s a) where showsPrec = showsPrec1
@@ -1088,6 +1148,14 @@ instance Eq s => Eq1 (ValueIntro err s) where
 #ifdef LANGUAGE_PTS_HAS_QUARKS
     liftEq _ (ValueHadron ls) (ValueHadron ls') = ls == ls'
     liftEq _ (ValueQuark l)   (ValueQuark l')   = l == l'
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    liftEq eq (ValueMu _ a b) (ValueMu _ a' b') =
+        liftEq eq a a' &&
+        liftEq eq b b'
+
+    -- TODO: ValueWrap
 #endif
 
     -- catch all case: False
@@ -1157,6 +1225,10 @@ instance Eq s => Eq1 (ValueElim err s) where
         liftEq eq p p' &&
         liftEq (liftEq eq) ls ls' &&
         liftEq eq l l'
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    -- TODO: ValueCata
 #endif
         
     -- catch all case: False
@@ -1228,6 +1300,14 @@ pppIntro _ (ValueHadron ls) = pppHadron ls
 pppIntro _ (ValueQuark l)   = pppQuark l
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+pppIntro d v@ValueMu {}    = uncurry (pppPi d) =<< pppPeelPi v
+pppIntro d (ValueWrap x)   = pppApplication d
+    "wrap"
+    [ pppIntro PrecApp x
+    ]
+#endif
+
 
 pppPeelLam :: (Specification s, PrettyPrec err) => ValueIntro err s Doc -> PrettyM ([Doc], PrettyM Doc)
 pppPeelLam (ValueLam n t b) = pppScopedIrrSym n $ \nDoc -> do
@@ -1260,6 +1340,12 @@ pppPeelPi (ValueSigma n a b)
         pppScopedIrrSym n $ \nDoc -> do
             ~(xs, ys) <- pppPeelPi (instantiate1return nDoc b)
             return (PPSigma nDoc (pppIntro PrecPi a) : xs, ys)
+#endif
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+pppPeelPi (ValueMu n a b)
+    = pppScopedIrrSym n $ \nDoc -> do
+        ~(xs, ys) <- pppPeelPi (instantiate1return nDoc b)
+        return (PPMu nDoc (pppIntro PrecPi a) :  xs, ys)
 #endif
 pppPeelPi v = return ([], pppIntro PrecPi v)
 
@@ -1348,9 +1434,10 @@ pppElim d (ValueQuarkElim x p qs q) = pppQuarkElim d x
     (pppElim PrecApp q)
 #endif
 
-#ifdef LANGUAGE_PTS_HAS_FIX
-pppElim d (ValueFix f) = pppApplication d
-    (pppText "fix") [pppIntro PrecApp f]
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+pppElim d (ValueCata x m a) = pppCata d x
+    (pppElim PrecApp m)
+    (\xDoc -> pppIntro PrecLambda $ instantiate1return xDoc a)
 #endif
 
 pppPeelApplication :: (Specification s, PrettyPrec err) => ValueElim err s Doc -> (PrettyM Doc, [PrettyM Doc])

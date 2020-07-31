@@ -89,6 +89,12 @@ quoteIntro (ValueHadron qs) = Inf (Hadron qs)
 quoteIntro (ValueQuark q)   = Quark q
 #endif
 
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+quoteIntro (ValueMu n a b) = Inf $ Mu n (unsafeChkToInf (quote_ a)) (quoteScopeInf b)
+quoteIntro (ValueWrap x)   = Wrap (quoteIntro x)
+#endif
+
+
 unsafeChkToInf :: Specification s => TermChk s a -> TermInf s a
 unsafeChkToInf (Inf u) = u
 unsafeChkToInf t       = Ann t (sort_ star_) -- this can be an `error`
@@ -150,8 +156,8 @@ quoteElim (ValueQuarkElim x p qs q) = QuarkElim x
     (Inf $ quoteElim q)
 #endif
 
-#ifdef LANGUAGE_PTS_HAS_FIX
-quoteElim (ValueFix _f) = error "TODO: fix"
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+quoteElim (ValueCata _x _m  _a) = error "quoteElim ValueCata is not implemented"
 #endif
 
 quoteScope

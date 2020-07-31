@@ -313,9 +313,8 @@ pairScript = do
 
     example_ "redex2"
 
-#endif
-
 -- $setup
 -- >>> :seti -XOverloadedStrings -XTypeApplications
 -- >>> import Language.PTS.Pretty
 -- >>> import Language.PTS.Systems
+#endif

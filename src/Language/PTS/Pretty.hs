@@ -92,6 +92,8 @@ module Language.PTS.Pretty (
     pppHadron,
     pppQuark,
     pppQuarkElim,
+    -- * Fixed point
+    pppCata,
     -- * Precedence
     Prec (..),
     predPrec,
@@ -412,7 +414,17 @@ pppQuarkElim d x p qs q = pppApplication d
 -- Fixed point
 -------------------------------------------------------------------------------
 
--- 
+pppCata 
+    :: Prec
+    -> IrrSym                 -- ^ x
+    -> PrettyM Doc            -- ^ mu
+    -> (Doc -> PrettyM Doc)   -- ^ algebra
+    -> PrettyM Doc
+pppCata d x m a = pppApplication d
+    (pppText "cata")
+    [ m
+    , pppScopedIrrSym x $ \xDoc -> pppLambda PrecApp [xDoc] $ a xDoc
+    ]
 
 -------------------------------------------------------------------------------
 -- Combinators

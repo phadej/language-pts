@@ -96,6 +96,10 @@ data Err
       -- ^ quark is (annoted with) not a hadron
     | IntraSortFix (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
       -- ^ fixed point body from one sort to another
+    | WrapNotMu (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
+      -- ^ wrap is (annotated with) not a mu-type.
+    | NotAMu (PrettyM Doc) (PrettyM Doc) [PrettyM Doc]
+      -- ^ cata on not a fixed point
     | ApplyPanic String (PrettyM Doc)
       -- ^ apply panic in 'Value' evaluator
     | OccursFailure (PrettyM Doc) (PrettyM Doc)
@@ -165,7 +169,14 @@ instance PrettyPrec Err where
     ppp _ (IntraSortFix a b ctx)           = pppError ctx
         [ "Fixed point between different sorts" <+> a <+> "and" <+> b
         ]
-
+    ppp _ (WrapNotMu x t ctx)              = pppError ctx
+        [ "Value" <+> x <+> "doesn't match shape of mu-type" 
+        , "Annotated with" <+> t
+        ]
+    ppp _ (NotAMu t f ctx)               = pppError ctx
+        [ "Couldn't match actual type" <+> t <+> "with a mu type"
+        , "In the cata on" <+> f
+        ]
     ppp _ (ApplyPanic tag f) =
         "panic '" <> pppText tag <> "':" </> err
       where

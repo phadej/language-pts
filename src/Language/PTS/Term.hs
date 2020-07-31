@@ -481,6 +481,9 @@ data TermChk s a
 #ifdef LANGUAGE_PTS_HAS_FIXED_POINT
     -- | Wrapping of fixed point.
     | Wrap (TermChk s a)
+
+    -- | Catamorphism
+    | Cata IrrSym (TermInf s a) (ScopeChkInf IrrSym s a)
 #endif
 
   deriving (Functor, Foldable, Traversable)
@@ -538,6 +541,14 @@ instance Show s => Show1 (TermChk s) where
     liftShowsPrec sp sl d (Wrap x) = showsUnaryWith
         (liftShowsPrec sp sl) 
         "Wrap" d x
+#endif
+
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+    liftShowsPrec sp sl d (Cata x y z) = showsTernaryWith
+        showsPrec
+        (liftShowsPrec sp sl)
+        (liftShowsPrec sp sl)
+        "Cata" d x y z
 #endif
 
 instance Show s => Show1 (TermInf s) where
@@ -805,6 +816,12 @@ pppPeelPi (Sigma n a b)
             ~(xs, ys) <- pppPeelPi (instantiate1H (return nDoc) b)
             return (PPSigma nDoc (pppInf PrecPi a) : xs, ys)
 #endif
+#ifdef LANGUAGE_PTS_HAS_FIXED_POINT
+pppPeelPi (Mu n a b)
+    = pppScopedIrrSym n $ \nDoc -> do
+        ~(xs, ys) <- pppPeelPi (instantiate1H (return nDoc) b)
+        return (PPMu nDoc (pppInf PrecPi a) :  xs, ys)
+#endif
 pppPeelPi t = return ([], pppInf PrecPi t)
 
 pppPeelApplication :: Specification s => TermInf s Doc -> (PrettyM Doc, [PrettyM Doc])
@@ -864,6 +881,10 @@ pppChk d (Wrap x) = pppApplication d
     (pppText "wrap")
     [ pppChk PrecApp x
     ]
+
+pppChk d (Cata x m a) = pppCata d x
+    (pppInf PrecApp m)
+    (\xDoc -> pppChk PrecLambda $ instantiate1H (return xDoc) a)
 #endif
 
 instance (Specification s, PrettyPrec a) => PrettyPrec (TermInf s a) where ppp = ppp1
@@ -968,7 +989,8 @@ instance Module (TermChk s) (TermInf s) where
 #endif
 
 #ifdef LANGUAGE_PTS_HAS_FIXED_POINT
-    Wrap f >>== k = Wrap (f >>== k)
+    Wrap f     >>== k = Wrap (f >>== k)
+    Cata x f a >>== k = Cata x (f >>== k) (a >>== k)
 #endif
 
 instance Module (TermInf s) (TermInf s) where
