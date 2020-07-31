@@ -1,6 +1,7 @@
 module Language.PTS.Specification (
     -- * PTS Specifications
     Specification (..),
+    ReflectiveSpecification (..),
     specificationDoc,
     -- * Individual universes.
     star_,
@@ -73,6 +74,11 @@ class (Eq s, Show s, Enum s, PrettyPrec s) => Specification s where
     -- }\;\mathsf{Pi}
     -- \]
     rule :: s -> s -> Maybe s
+
+class Specification s => ReflectiveSpecification s where
+    axiom' :: s -> s
+
+    relationSort :: s -> s
 
 -- | Pretty-print specification
 --

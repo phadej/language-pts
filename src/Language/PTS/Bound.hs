@@ -23,6 +23,7 @@ module Language.PTS.Bound (
     unusedScope,
     -- * ScopeH
     ScopeH (..),
+    toScopeH,
     fromScopeH,
     abstractH,
     abstractHEither,
@@ -48,7 +49,7 @@ import Bound.Scope.Simple
        (Scope (..), abstract, bindings, fromScope, instantiate, instantiate1,
        toScope, transverseScope)
 import Bound.ScopeH
-       (ScopeH (..), abstractH, abstractHEither, bindingsH, fromScopeH,
+       (ScopeH (..), abstractH, abstractHEither, bindingsH, fromScopeH, toScopeH,
        instantiate1H, instantiateH, instantiateHEither)
 import Bound.Var            (Var (..), unvar)
 import Control.Monad.Module (Module (..))

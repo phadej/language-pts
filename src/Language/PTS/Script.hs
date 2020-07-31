@@ -67,6 +67,8 @@ class (Specification s, Monad m) => Script s m | m -> s where
         -> Term s         -- ^ type
         -> m ()
 
+    -- ⟦ ⟧ 
+
     -- | Evaluate an example value.
     example_ :: Term s -> m ()
 

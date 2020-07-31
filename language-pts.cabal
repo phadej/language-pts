@@ -121,6 +121,7 @@ library
     Language.PTS.Bound
     Language.PTS.Check
     Language.PTS.Error
+    Language.PTS.Parametricity
     Language.PTS.Pretty
     Language.PTS.Quote
     Language.PTS.Script
